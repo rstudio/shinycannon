@@ -20,6 +20,7 @@
   },
   "optionalDependencies": {},
   "devDependencies": {
-    "eslint": "^4.5.0"
+    "eslint": "^4.5.0",
+    "prettier": "^1.5.3"
   }
 }
