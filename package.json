@@ -1,0 +1,25 @@
+{
+  "name": "proxyrec",
+  "version": "1.0.0",
+  "description": "",
+  "main": "lib/main.js",
+  "scripts": {
+    "start": "node lib/main.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "byline": "^5.0.0",
+    "http-proxy": "^1.16.2",
+    "longjohn": "^0.2.12",
+    "memory-streams": "^0.1.2",
+    "websocket": "^1.0.24",
+    "websocket-driver": "^0.6.5",
+    "yargs": "^8.0.2"
+  },
+  "optionalDependencies": {},
+  "devDependencies": {
+    "eslint": "^4.5.0"
+  }
+}
