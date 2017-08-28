@@ -15,7 +15,7 @@
     "longjohn": "^0.2.12",
     "memory-streams": "^0.1.2",
     "websocket": "^1.0.24",
-    "websocket-driver": "^0.6.5",
+    "websocket-driver": "git://github.com/rstudio/websocket-driver-node.git#no-extensions",
     "yargs": "^8.0.2"
   },
   "optionalDependencies": {},
