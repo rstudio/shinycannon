@@ -8,7 +8,7 @@ Shiny is not a good fit for traditional HTTP load testing tools like ApacheBench
 
 ## Install
 
-Install Node v8.4.0
+Install Node v8.4.0, then navigate to this repo's directory and run:
 
 ```
 npm install
@@ -19,3 +19,7 @@ npm install
 ```
 node lib/main.js --help
 ```
+
+## License
+
+GPLv3
