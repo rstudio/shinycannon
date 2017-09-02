@@ -5,7 +5,7 @@
   "main": "lib/main.js",
   "scripts": {
     "start": "node lib/main.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo 'No Tests...Running Build'; node build/build.js;"
   },
   "author": "",
   "license": "GPL-3.0",
@@ -21,6 +21,7 @@
   "optionalDependencies": {},
   "devDependencies": {
     "eslint": "^4.5.0",
-    "prettier": "^1.5.3"
+    "prettier": "^1.5.3",
+    "pkg": "^4.2.3"
   }
 }
