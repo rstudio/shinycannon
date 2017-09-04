@@ -20,6 +20,11 @@ npm install
 node lib/main.js --help
 ```
 
+## Known limitations
+
+- Subapps are not supported (or any page with Shiny apps in an iframe)
+- File uploads are not supported
+
 ## License
 
 GPLv3
