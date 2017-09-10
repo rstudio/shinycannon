@@ -16,7 +16,8 @@
     "memory-streams": "^0.1.2",
     "websocket": "^1.0.24",
     "websocket-driver": "git://github.com/rstudio/websocket-driver-node.git#no-extensions",
-    "yargs": "^8.0.2"
+    "yargs": "^8.0.2",
+    "parse-duration": "^0.1.1"
   },
   "optionalDependencies": {},
   "devDependencies": {
