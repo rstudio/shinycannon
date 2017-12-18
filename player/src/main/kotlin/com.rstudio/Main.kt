@@ -1,5 +1,6 @@
 package com.rstudio
 
+import com.github.kittinunf.fuel.core.Response
 import com.github.kittinunf.fuel.httpGet
 import com.google.gson.JsonParser
 import com.xenomachina.argparser.ArgParser
@@ -68,7 +69,9 @@ class ShinySession(val appUrl: String,
                    var script: ArrayList<Event>,
                    val log: KLogger) {
 
-    var workerToken: String? = null
+    var workerId: String? = null
+    var sessionToken: String? = null
+
     var expecting: WSEvent? = null
     var wsSession: Session? = null
     val receivedEvent: LinkedBlockingQueue<WSEvent> = LinkedBlockingQueue(1)
@@ -81,29 +84,56 @@ class ShinySession(val appUrl: String,
         return script.size == 0
     }
 
-    fun handleHTTP(type: HTTPEventType, event: HTTPEvent) {
-        when (type) {
+    fun wsEventsEqual(event1: WSEvent, event2: WSEvent): Boolean {
+        return false
+    }
+
+    fun handle(event: Event) {
+        when(event) {
+            is WSEvent -> handle(event)
+            is HTTPEvent -> handle(event)
+        }
+    }
+
+    fun handle(event: WSEvent) {
+    }
+
+    fun handle(event: HTTPEvent) {
+
+        fun substituteWorkerId(url: String): String {
+            // It's an error if this.workerId is null at this point.
+            return url.replace("\${WORKER}", workerId!!, false)
+        }
+
+        fun getResponse(event: HTTPEvent, workerIdRequired: Boolean = true): Response {
+            val url = if (workerIdRequired) substituteWorkerId(event.url) else event.url
+            val response = (appUrl + url).httpGet().responseString().second
+            if (response.statusCode != event.statusCode)
+                throw Exception("Status code was ${response.statusCode} but expected ${event.statusCode}")
+            return response
+        }
+
+        when (event.type) {
             HTTPEventType.REQ_HOME -> {
-                val (request, response, result) = (appUrl + event.url).httpGet().responseString()
-                val pattern = "<base href=\"_w_([0-9a-z]+)/"
-                val re = Pattern.compile(pattern)
+                val response = getResponse(event, false)
+                val re = Pattern.compile("<base href=\"_w_([0-9a-z]+)/")
                 val matcher = re.matcher(response.toString())
                 if (matcher.find()) {
-                    workerToken = matcher.group(1)
+                    workerId = matcher.group(1)
                 } else {
                     throw Exception("Unable to parse worker ID from response to REQ_HOME event")
                 }
             }
+            HTTPEventType.REQ -> {
+                val response = getResponse(event)
+                // If we had a stats object or "reporter" to update we'd add 1 to the count of successfull requests.
+            }
+            HTTPEventType.REQ_TOK -> {
+                sessionToken = String(getResponse(event).data)
+            }
         }
 
-    }
-
-    fun handleWS(type: WSEventType, event: WSEvent) {
-
-    }
-
-    fun wsEventsEqual(event1: WSEvent, event2: WSEvent): Boolean {
-        return false
+        log.debug { "Handled ${event}" }
     }
 
     fun step() {
@@ -117,12 +147,7 @@ class ShinySession(val appUrl: String,
                 throw IllegalStateException("Expected ${expecting} but received ${received}")
             }
         } else if (script.size > 0) {
-            val nextEvent = script.get(0)
-            log.debug { "Handling $nextEvent" }
-            when (nextEvent) {
-                is HTTPEvent -> handleHTTP(nextEvent.type, nextEvent)
-                is WSEvent -> handleWS(nextEvent.type, nextEvent)
-            }
+            handle(script.get(0))
             script.removeAt(0)
         } else {
             throw IllegalStateException("Can't step; not expecting an event, and out of events to send")
@@ -142,7 +167,8 @@ fun _main(args: Array<String>) = mainBody("player") {
         var log = readEventLog(logPath)
         val session = ShinySession(appUrl, log.clone() as ArrayList<Event>, KotlinLogging.logger {})
         session.step()
-        println("worker token = " + session.workerToken)
+        session.step()
+        session.step()
 //        while (!session.isDone())
 //            session.step()
 //        val log = readEventLog(logPath)

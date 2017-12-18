@@ -40,7 +40,6 @@
     <orderEntry type="library" name="Maven: com.google.code.gson:gson:2.8.2" level="project" />
     <orderEntry type="library" name="Maven: com.xenomachina:kotlin-argparser:2.0.3" level="project" />
     <orderEntry type="library" scope="RUNTIME" name="Maven: com.xenomachina:xenocom:0.0.5" level="project" />
-    <orderEntry type="library" name="Maven: org.organicdesign:Paguro:3.0.17" level="project" />
     <orderEntry type="library" name="Maven: org.slf4j:slf4j-api:1.7.25" level="project" />
     <orderEntry type="library" name="Maven: org.slf4j:slf4j-log4j12:1.7.25" level="project" />
     <orderEntry type="library" name="Maven: log4j:log4j:1.2.17" level="project" />
