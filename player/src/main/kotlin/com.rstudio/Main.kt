@@ -16,6 +16,15 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 import javax.websocket.Session
+import java.security.DrbgParameters.nextBytes
+import java.security.SecureRandom
+import java.math.BigInteger
+import java.util.Random
+
+
+
+
+
 
 sealed class Event
 
@@ -65,13 +74,23 @@ fun wsEventsEqual(e1: WSEvent, e2: WSEvent): Boolean {
     return true;
 }
 
+// mirNTMNTw2zWVwTu7P is an example
+fun getRandomHexString(numchars: Int = 18): String {
+    val r = SecureRandom()
+    val sb = StringBuffer()
+    while (sb.length < numchars) {
+        sb.append(Integer.toHexString(r.nextInt()))
+    }
+    return sb.toString().substring(0, numchars)
+}
+
 class ShinySession(val appUrl: String,
                    var script: ArrayList<Event>,
                    val log: KLogger) {
 
     var workerId: String? = null
     var sessionToken: String? = null
-
+    var robustId: String = getRandomHexString()
     var expecting: WSEvent? = null
     var wsSession: Session? = null
     val receivedEvent: LinkedBlockingQueue<WSEvent> = LinkedBlockingQueue(1)
@@ -114,6 +133,7 @@ class ShinySession(val appUrl: String,
         }
 
         when (event.type) {
+            // {"type":"REQ_HOME","created":"2017-12-14T16:43:32.748Z","method":"GET","url":"/","statusCode":200}
             HTTPEventType.REQ_HOME -> {
                 val response = getResponse(event, false)
                 val re = Pattern.compile("<base href=\"_w_([0-9a-z]+)/")
@@ -124,11 +144,17 @@ class ShinySession(val appUrl: String,
                     throw Exception("Unable to parse worker ID from response to REQ_HOME event")
                 }
             }
+            // {"type":"REQ","created":"2017-12-14T16:43:34.045Z","method":"GET","url":"/_w_${WORKER}/__assets__/shiny-server.css","statusCode":200}
             HTTPEventType.REQ -> {
                 val response = getResponse(event)
             }
+            // {"type":"REQ_TOK","created":"2017-12-14T16:43:34.182Z","method":"GET","url":"/_w_${WORKER}/__token__?_=1513269814000","statusCode":200}
             HTTPEventType.REQ_TOK -> {
                 sessionToken = String(getResponse(event).data)
+            }
+            // {"type":"REQ_SINF","created":"2017-12-14T16:43:34.244Z","method":"GET","url":"/__sockjs__/n=${ROBUST_ID}/t=${TOKEN}/w=${WORKER}/s=0/info","statusCode":200}
+            HTTPEventType.REQ_SINF -> {
+
             }
         }
 
@@ -165,9 +191,10 @@ fun _main(args: Array<String>) = mainBody("player") {
     Args(ArgParser(args)).run {
         var log = readEventLog(logPath)
         val session = ShinySession(appUrl, log.clone() as ArrayList<Event>, KotlinLogging.logger {})
-        session.step()
-        session.step()
-        session.step()
+        println(session.robustId)
+//        session.step()
+//        session.step()
+//        session.step()
 //        while (!session.isDone())
 //            session.step()
 //        val log = readEventLog(logPath)
