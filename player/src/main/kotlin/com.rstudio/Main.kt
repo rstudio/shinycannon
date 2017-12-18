@@ -126,7 +126,6 @@ class ShinySession(val appUrl: String,
             }
             HTTPEventType.REQ -> {
                 val response = getResponse(event)
-                // If we had a stats object or "reporter" to update we'd add 1 to the count of successfull requests.
             }
             HTTPEventType.REQ_TOK -> {
                 sessionToken = String(getResponse(event).data)
