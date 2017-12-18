@@ -1,7 +1,5 @@
 package com.rstudio
 
-import com.github.kittinunf.fuel.Fuel
-import com.github.kittinunf.fuel.core.Method
 import com.github.kittinunf.fuel.httpGet
 import com.google.gson.JsonParser
 import com.xenomachina.argparser.ArgParser
@@ -9,12 +7,10 @@ import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
 import mu.KLogger
 import mu.KotlinLogging
-import org.organicdesign.fp.collections.RrbTree
 import java.io.File
 import java.lang.Exception
-import java.text.ParseException
 import java.time.Instant
-import java.util.ArrayList
+import java.util.*
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
@@ -86,7 +82,7 @@ class ShinySession(val appUrl: String,
     }
 
     fun handleHTTP(type: HTTPEventType, event: HTTPEvent) {
-        when(type) {
+        when (type) {
             HTTPEventType.REQ_HOME -> {
                 val (request, response, result) = (appUrl + event.url).httpGet().responseString()
                 val pattern = "<base href=\"_w_([0-9a-z]+)/"

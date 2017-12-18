@@ -60,11 +60,6 @@
             <version>2.0.3</version>
         </dependency>
         <dependency>
-            <groupId>org.organicdesign</groupId>
-            <artifactId>Paguro</artifactId>
-            <version>3.0.17</version>
-        </dependency>
-        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>1.7.25</version>
