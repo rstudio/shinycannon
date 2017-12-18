@@ -8,11 +8,11 @@ import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
 import mu.KLogger
 import mu.KotlinLogging
+import org.organicdesign.fp.collections.RrbTree
 import java.io.File
 import java.lang.Exception
 import java.security.SecureRandom
 import java.time.Instant
-import java.util.*
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
@@ -53,12 +53,12 @@ fun parseLine(line: String): Event {
     }
 }
 
-fun readEventLog(logPath: String): ArrayList<Event> {
+fun readEventLog(logPath: String): RrbTree<out Event> {
     return File(logPath).readLines()
             .asSequence()
             .filterNot { it.startsWith("#") }
-            .fold(ArrayList<Event>()) { events, line ->
-                events.also { it.add(parseLine(line)) }
+            .fold(RrbTree.empty<Event>()) { events, line ->
+                events.append(parseLine(line))
             }
 }
 
@@ -77,7 +77,7 @@ fun getRandomHexString(numchars: Int = 18): String {
 }
 
 class ShinySession(val appUrl: String,
-                   var script: ArrayList<Event>,
+                   var script: RrbTree<out Event>,
                    val log: KLogger) {
 
     var workerId: String? = null
@@ -165,7 +165,7 @@ class ShinySession(val appUrl: String,
             }
         } else if (script.size > 0) {
             handle(script.get(0))
-            script.removeAt(0)
+            script.without(0)
         } else {
             throw IllegalStateException("Can't step; not expecting an event, and out of events to send")
         }
@@ -182,11 +182,10 @@ class Args(parser: ArgParser) {
 fun _main(args: Array<String>) = mainBody("player") {
     Args(ArgParser(args)).run {
         var log = readEventLog(logPath)
-        val session = ShinySession(appUrl, log.clone() as ArrayList<Event>, KotlinLogging.logger {})
-        println(session.robustId)
-//        session.step()
-//        session.step()
-//        session.step()
+        val session = ShinySession(appUrl, log, KotlinLogging.logger {})
+        session.step()
+        session.step()
+        session.step()
 //        while (!session.isDone())
 //            session.step()
 //        val log = readEventLog(logPath)
