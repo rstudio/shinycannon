@@ -14,6 +14,7 @@ import java.io.File
 import java.lang.Exception
 import java.text.ParseException
 import java.time.Instant
+import java.util.ArrayList
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
@@ -54,12 +55,12 @@ fun parseLine(line: String): Event {
     }
 }
 
-fun readEventLog(logPath: String): RrbTree<Event> {
+fun readEventLog(logPath: String): ArrayList<Event> {
     return File(logPath).readLines()
             .asSequence()
             .filterNot { it.startsWith("#") }
-            .fold(RrbTree.empty<Event>()) { events, line ->
-                events.append(parseLine(line))
+            .fold(ArrayList<Event>()) { events, line ->
+                events.also { it.add(parseLine(line)) }
             }
 }
 
@@ -68,7 +69,7 @@ fun wsEventsEqual(e1: WSEvent, e2: WSEvent): Boolean {
 }
 
 class ShinySession(val appUrl: String,
-                   var script: RrbTree<Event>,
+                   var script: ArrayList<Event>,
                    val log: KLogger) {
 
     var workerToken: String? = null
@@ -81,7 +82,7 @@ class ShinySession(val appUrl: String,
     }
 
     fun isDone(): Boolean {
-        return script.count() == 0
+        return script.size == 0
     }
 
     fun handleHTTP(type: HTTPEventType, event: HTTPEvent) {
@@ -126,7 +127,7 @@ class ShinySession(val appUrl: String,
                 is HTTPEvent -> handleHTTP(nextEvent.type, nextEvent)
                 is WSEvent -> handleWS(nextEvent.type, nextEvent)
             }
-            script.without(0)
+            script.removeAt(0)
         } else {
             throw IllegalStateException("Can't step; not expecting an event, and out of events to send")
         }
@@ -142,7 +143,8 @@ class Args(parser: ArgParser) {
 
 fun _main(args: Array<String>) = mainBody("player") {
     Args(ArgParser(args)).run {
-        val session = ShinySession(appUrl, readEventLog(logPath), KotlinLogging.logger {})
+        var log = readEventLog(logPath)
+        val session = ShinySession(appUrl, log.clone() as ArrayList<Event>, KotlinLogging.logger {})
         session.step()
         println("worker token = " + session.workerToken)
 //        while (!session.isDone())
