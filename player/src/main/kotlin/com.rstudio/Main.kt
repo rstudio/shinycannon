@@ -8,6 +8,8 @@ import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
 import mu.KLogger
 import mu.KotlinLogging
+import org.organicdesign.fp.collections.PersistentHashMap
+import org.organicdesign.fp.collections.PersistentTreeSet
 import org.organicdesign.fp.collections.RrbTree
 import java.io.File
 import java.lang.Exception
@@ -76,9 +78,22 @@ fun getRandomHexString(numchars: Int = 18): String {
     return sb.toString().substring(0, numchars)
 }
 
+fun getTokens(url: String): MutableSet<String> {
+    val tokens = HashSet<String>()
+    for (token in Regex("""\$\{([A-Z_]+)}""" ).findAll(url)) {
+        // we know the next line is safe because: token.groups.forEach { println(it) }
+        tokens.add(token.groups[1]!!.value)
+    }
+    return tokens
+}
+
 class ShinySession(val appUrl: String,
                    var script: RrbTree<out Event>,
                    val log: KLogger) {
+
+    val allowedTokens: MutableSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID")
+    var urlDictionary: PersistentHashMap<String, String> = PersistentHashMap.empty<String, String>()
+            .assoc("ROBUST_ID", getRandomHexString())
 
     var workerId: String? = null
     var sessionToken: String? = null
@@ -86,6 +101,7 @@ class ShinySession(val appUrl: String,
     var expecting: WSEvent? = null
     var wsSession: Session? = null
     val receivedEvent: LinkedBlockingQueue<WSEvent> = LinkedBlockingQueue(1)
+
 
     init {
         log.debug { "Hello ok!" }
@@ -112,8 +128,8 @@ class ShinySession(val appUrl: String,
     fun handle(event: HTTPEvent) {
 
         fun substituteWorkerId(url: String): String {
-            // It's an error if this.workerId is null at this point.
-            return url.replace("\${WORKER}", workerId!!, false)
+
+            return "hi"
         }
 
         fun getResponse(event: HTTPEvent, workerIdRequired: Boolean = true): Response {
@@ -133,7 +149,7 @@ class ShinySession(val appUrl: String,
                 if (matcher.find()) {
                     workerId = matcher.group(1)
                 } else {
-                    throw Exception("Unable to parse worker ID from response to REQ_HOME event")
+                    throw Exception("Unable to parse worker ID from response to REQ_HOME event. (Perhaps you're running SS Open Source or in local development?)")
                 }
             }
             // {"type":"REQ","created":"2017-12-14T16:43:34.045Z","method":"GET","url":"/_w_${WORKER}/__assets__/shiny-server.css","statusCode":200}
@@ -146,7 +162,7 @@ class ShinySession(val appUrl: String,
             }
             // {"type":"REQ_SINF","created":"2017-12-14T16:43:34.244Z","method":"GET","url":"/__sockjs__/n=${ROBUST_ID}/t=${TOKEN}/w=${WORKER}/s=0/info","statusCode":200}
             HTTPEventType.REQ_SINF -> {
-
+                val response = getResponse(event)
             }
         }
 
@@ -195,4 +211,5 @@ fun _main(args: Array<String>) = mainBody("player") {
 
 //fun main(args: Array<String>) = _main(arrayOf("hello.log"))
 //fun main(args: Array<String>) = _main(args)
-fun main(args: Array<String>) = _main(arrayOf("--users", "1", "--app-url", "http://localhost:3838/sample-apps/hello/", "geyser-short.log"))
+//fun main(args: Array<String>) = _main(arrayOf("--users", "1", "--app-url", "http://localhost:3838/sample-apps/hello/", "geyser-short.log"))
+fun main(args: Array<String>) = _main(arrayOf("--users", "1", "--app-url", "http://10.211.55.6:3838/sample-apps/hello/", "hello.log"))
