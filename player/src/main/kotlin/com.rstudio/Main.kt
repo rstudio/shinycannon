@@ -9,12 +9,12 @@ import com.xenomachina.argparser.mainBody
 import mu.KLogger
 import mu.KotlinLogging
 import org.organicdesign.fp.collections.PersistentHashMap
-import org.organicdesign.fp.collections.PersistentTreeSet
 import org.organicdesign.fp.collections.RrbTree
 import java.io.File
 import java.lang.Exception
 import java.security.SecureRandom
 import java.time.Instant
+import java.util.*
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
@@ -78,7 +78,7 @@ fun getRandomHexString(numchars: Int = 18): String {
     return sb.toString().substring(0, numchars)
 }
 
-fun getTokens(url: String): MutableSet<String> {
+fun getTokens(url: String): HashSet<String> {
     val tokens = HashSet<String>()
     for (token in Regex("""\$\{([A-Z_]+)}""" ).findAll(url)) {
         // we know the next line is safe because: token.groups.forEach { println(it) }
@@ -87,13 +87,26 @@ fun getTokens(url: String): MutableSet<String> {
     return tokens
 }
 
+fun tokenizeUrl(url: String, tokens: HashSet<String>,
+                allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID"),
+                urlDictionary: PersistentHashMap<String, String> =  PersistentHashMap.empty<String, String>()
+                        .assoc("ROBUST_ID", getRandomHexString())): String {
+    tokens.forEach { token ->
+        if (token in allowedTokens) {
+            val value: String = urlDictionary[token] ?:
+                    throw Exception("${token} is an allowed token, but it isn't present in the dictionary")
+            url.replace("\${${token}}", value, false)
+            println(url)
+        } else {
+            throw Exception("${token} is not an allowed token")
+        }
+    }
+    return url
+}
+
 class ShinySession(val appUrl: String,
                    var script: RrbTree<out Event>,
                    val log: KLogger) {
-
-    val allowedTokens: MutableSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID")
-    var urlDictionary: PersistentHashMap<String, String> = PersistentHashMap.empty<String, String>()
-            .assoc("ROBUST_ID", getRandomHexString())
 
     var workerId: String? = null
     var sessionToken: String? = null
@@ -127,13 +140,8 @@ class ShinySession(val appUrl: String,
 
     fun handle(event: HTTPEvent) {
 
-        fun substituteWorkerId(url: String): String {
-
-            return "hi"
-        }
-
         fun getResponse(event: HTTPEvent, workerIdRequired: Boolean = true): Response {
-            val url = if (workerIdRequired) substituteWorkerId(event.url) else event.url
+            val url = tokenizeUrl(event.url, getTokens(event.url))
             val response = (appUrl + url).httpGet().responseString().second
             if (response.statusCode != event.statusCode)
                 throw Exception("Status code was ${response.statusCode} but expected ${event.statusCode}")
