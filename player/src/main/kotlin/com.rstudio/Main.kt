@@ -19,6 +19,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 import javax.websocket.Session
+import kotlin.collections.HashSet
 
 sealed class Event
 
@@ -87,26 +88,30 @@ fun getTokens(url: String): HashSet<String> {
     return tokens
 }
 
-fun tokenizeUrl(url: String, tokens: HashSet<String>,
-                allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID"),
-                urlDictionary: PersistentHashMap<String, String> =  PersistentHashMap.empty<String, String>()
-                        .assoc("ROBUST_ID", getRandomHexString())): String {
-    tokens.forEach { token ->
-        if (token in allowedTokens) {
-            val value: String = urlDictionary[token] ?:
-                    throw Exception("${token} is an allowed token, but it isn't present in the dictionary")
-            url.replace("\${${token}}", value, false)
-            println(url)
-        } else {
-            throw Exception("${token} is not an allowed token")
-        }
+fun tokenizeUrl(url: String,
+                allowedTokens: HashSet<String>,
+                tokenDictionary: PersistentHashMap<String, String>): String {
+
+    val tokensInUrl = getTokens(url)
+    if (allowedTokens.union(tokensInUrl) != allowedTokens) {
+        val illegalTokens = tokensInUrl.filterNot { allowedTokens.contains(it) }
+        throw Exception("$illegalTokens are illegal tokens")
     }
-    return url
+
+    return tokensInUrl.fold(url) { str, tokenName ->
+        if (!tokenDictionary.containsKey(tokenName))
+            throw Exception("$tokenName is an allowed token, but it isn't present in the dictionary")
+        str.replace("\${$tokenName}", tokenDictionary[tokenName]!!, true)
+    }
 }
 
 class ShinySession(val appUrl: String,
                    var script: RrbTree<out Event>,
                    val log: KLogger) {
+
+    val allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID")
+    var urlDictionary: PersistentHashMap<String, String> =  PersistentHashMap.empty<String, String>()
+            .assoc("ROBUST_ID", getRandomHexString())
 
     var workerId: String? = null
     var sessionToken: String? = null
@@ -141,7 +146,7 @@ class ShinySession(val appUrl: String,
     fun handle(event: HTTPEvent) {
 
         fun getResponse(event: HTTPEvent, workerIdRequired: Boolean = true): Response {
-            val url = tokenizeUrl(event.url, getTokens(event.url))
+            val url = tokenizeUrl(event.url, allowedTokens, urlDictionary)
             val response = (appUrl + url).httpGet().responseString().second
             if (response.statusCode != event.statusCode)
                 throw Exception("Status code was ${response.statusCode} but expected ${event.statusCode}")

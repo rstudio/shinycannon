@@ -23,8 +23,8 @@ class Test {
 
     @Test
     fun testTokenizeUrl() {
-        val url = tokenizeUrl(testUrl, getTokens(testUrl), allowedTokens, urlDictionary)
-        Assert.assertEquals("foo funny! bar very funny!!!", url)
+        val url = tokenizeUrl(testUrl, allowedTokens, urlDictionary)
+        Assert.assertEquals("foo funny! bar very funny!!! ", url)
     }
 
 }
