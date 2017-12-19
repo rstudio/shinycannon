@@ -63,10 +63,6 @@ fun readEventLog(logPath: String): ArrayList<out Event> {
             }
 }
 
-fun wsEventsEqual(e1: WSEvent, e2: WSEvent): Boolean {
-    return true;
-}
-
 fun randomHexString(numchars: Int): String {
     val r = SecureRandom()
     val sb = StringBuffer()
