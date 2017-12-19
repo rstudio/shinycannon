@@ -3,6 +3,7 @@ package com.rstudio
 import com.github.kittinunf.fuel.core.Response
 import com.github.kittinunf.fuel.httpGet
 import com.google.gson.JsonParser
+import com.neovisionaries.ws.client.*
 import com.xenomachina.argparser.ArgParser
 import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
@@ -10,12 +11,13 @@ import mu.KLogger
 import mu.KotlinLogging
 import java.io.File
 import java.lang.Exception
+import java.net.URI
 import java.security.SecureRandom
 import java.time.Instant
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
-import javax.websocket.Session
+import javax.websocket.*
 
 sealed class Event
 
@@ -56,7 +58,7 @@ fun readEventLog(logPath: String): ArrayList<out Event> {
     return File(logPath).readLines()
             .asSequence()
             .filterNot { it.startsWith("#") }
-            .fold(ArrayList<Event>()) { events, line ->
+            .fold(ArrayList()) { events, line ->
                 events.also { it.add(parseLine(line)) }
             }
 }
@@ -65,55 +67,58 @@ fun wsEventsEqual(e1: WSEvent, e2: WSEvent): Boolean {
     return true;
 }
 
-// mirNTMNTw2zWVwTu7P is an example
-fun getRandomHexString(numchars: Int = 18): String {
+fun randomHexString(numchars: Int): String {
     val r = SecureRandom()
     val sb = StringBuffer()
-    while (sb.length < numchars) {
-        sb.append(Integer.toHexString(r.nextInt()))
-    }
+    while (sb.length < numchars) sb.append(Integer.toHexString(r.nextInt()))
     return sb.toString().substring(0, numchars)
 }
 
 fun getTokens(url: String): HashSet<String> {
     val tokens = HashSet<String>()
-    for (token in Regex("""\$\{([A-Z_]+)}""" ).findAll(url)) {
+    for (token in Regex("""\$\{([A-Z_]+)}""").findAll(url)) {
         // we know the next line is safe because: token.groups.forEach { println(it) }
         tokens.add(token.groups[1]!!.value)
     }
     return tokens
 }
 
-fun tokenizeUrl(url: String,
-                allowedTokens: HashSet<String>,
-                tokenDictionary: HashMap<String, String>): String {
+fun replaceTokens(str: String,
+                  allowedTokens: HashSet<String>,
+                  tokenDictionary: HashMap<String, String>): String {
 
-    val tokensInUrl = getTokens(url)
+    val tokensInUrl = getTokens(str)
     if (allowedTokens.union(tokensInUrl) != allowedTokens) {
         val illegalTokens = tokensInUrl.filterNot { allowedTokens.contains(it) }
         throw Exception("$illegalTokens are illegal tokens")
     }
 
-    return tokensInUrl.fold(url) { str, tokenName ->
+    return tokensInUrl.fold(str) { str, tokenName ->
         if (!tokenDictionary.containsKey(tokenName))
             throw Exception("$tokenName is an allowed token, but it isn't present in the dictionary")
         str.replace("\${$tokenName}", tokenDictionary[tokenName]!!, true)
     }
 }
 
-class ShinySession(val appUrl: String,
+fun makeWsUrl(httpUrl: String): String {
+    val uri = URI.create(httpUrl)
+    return URI("ws", uri.userInfo, uri.host, uri.port, uri.path, uri.query, uri.fragment).toString()
+}
+
+class ShinySession(val appHTTPUrl: String,
                    var script: ArrayList<out Event>,
                    val log: KLogger) {
 
     val allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID")
-    var urlDictionary: HashMap<String, String> = hashMapOf(Pair("ROBUST_ID", getRandomHexString()))
+    val tokenDictionary: HashMap<String, String> = hashMapOf(
+            Pair("ROBUST_ID", randomHexString(18)),
+            Pair("SOCKJSID", "000/${randomHexString(8)}")
+    )
 
-    var workerId: String? = null
-    var sessionToken: String? = null
-    var robustId: String = getRandomHexString()
-    var expecting: WSEvent? = null
-    var wsSession: Session? = null
-    val receivedEvent: LinkedBlockingQueue<WSEvent> = LinkedBlockingQueue(1)
+    val appWSUrl = makeWsUrl(appHTTPUrl)
+    var expecting: String? = null
+    var webSocket: WebSocket? = null
+    val receivedWSMessage: LinkedBlockingQueue<String> = LinkedBlockingQueue(1)
 
     init {
         log.debug { "Hello ok!" }
@@ -123,66 +128,83 @@ class ShinySession(val appUrl: String,
         return script.size == 0
     }
 
-    fun wsEventsEqual(event1: WSEvent, event2: WSEvent): Boolean {
-        return false
-    }
-
     fun handle(event: Event) {
-        when(event) {
+        when (event) {
             is WSEvent -> handle(event)
             is HTTPEvent -> handle(event)
         }
+
+        log.debug { "Handled ${event}" }
     }
 
-    fun handle(event: WSEvent) {
+    fun httpGet(event: HTTPEvent): Response {
+        val url = replaceTokens(event.url, allowedTokens, tokenDictionary)
+        val response = (appHTTPUrl + url).httpGet().responseString().second
+        if (response.statusCode != event.statusCode)
+            throw Exception("Status code was ${response.statusCode} but expected ${event.statusCode}")
+        return response
     }
 
     fun handle(event: HTTPEvent) {
-
-        fun getResponse(event: HTTPEvent, workerIdRequired: Boolean = true): Response {
-            val url = tokenizeUrl(event.url, allowedTokens, urlDictionary)
-            val response = (appUrl + url).httpGet().responseString().second
-            if (response.statusCode != event.statusCode)
-                throw Exception("Status code was ${response.statusCode} but expected ${event.statusCode}")
-            return response
-        }
-
         when (event.type) {
             // {"type":"REQ_HOME","created":"2017-12-14T16:43:32.748Z","method":"GET","url":"/","statusCode":200}
             HTTPEventType.REQ_HOME -> {
-                val response = getResponse(event, false)
+                val response = httpGet(event)
                 val re = Pattern.compile("<base href=\"_w_([0-9a-z]+)/")
                 val matcher = re.matcher(response.toString())
                 if (matcher.find()) {
-                    urlDictionary["WORKER"] = matcher.group(1)
+                    tokenDictionary["WORKER"] = matcher.group(1)
                 } else {
                     throw Exception("Unable to parse worker ID from response to REQ_HOME event. (Perhaps you're running SS Open Source or in local development?)")
                 }
             }
             // {"type":"REQ","created":"2017-12-14T16:43:34.045Z","method":"GET","url":"/_w_${WORKER}/__assets__/shiny-server.css","statusCode":200}
             HTTPEventType.REQ -> {
-                val response = getResponse(event)
+                httpGet(event)
             }
             // {"type":"REQ_TOK","created":"2017-12-14T16:43:34.182Z","method":"GET","url":"/_w_${WORKER}/__token__?_=1513269814000","statusCode":200}
             HTTPEventType.REQ_TOK -> {
-                sessionToken = String(getResponse(event).data)
+                tokenDictionary["TOKEN"] = String(httpGet(event).data)
             }
             // {"type":"REQ_SINF","created":"2017-12-14T16:43:34.244Z","method":"GET","url":"/__sockjs__/n=${ROBUST_ID}/t=${TOKEN}/w=${WORKER}/s=0/info","statusCode":200}
             HTTPEventType.REQ_SINF -> {
-                val response = getResponse(event)
+                httpGet(event)
             }
         }
+    }
 
-        log.debug { "Handled ${event}" }
+    fun handle(event: WSEvent) {
+        when (event.type) {
+            // {"type":"WS_OPEN","created":"2017-12-14T16:43:34.273Z","url":"/__sockjs__/n=${ROBUST_ID}/t=${TOKEN}/w=${WORKER}/s=0/${SOCKJSID}/websocket"}
+            WSEventType.WS_OPEN -> {
+                if (webSocket != null) throw Exception("Tried to WS_OPEN but already have a websocket")
+                var wsUrl = appWSUrl + replaceTokens(event.url!!, allowedTokens, tokenDictionary)
+                webSocket = WebSocketFactory().createSocket(wsUrl, 5000)
+                webSocket!!.addListener(object : WebSocketAdapter() {
+                    override fun onTextMessage(sock: WebSocket, msg: String) {
+                        log.debug { "Received: $msg" }
+                        receivedWSMessage.add(replaceTokens(msg, allowedTokens, tokenDictionary))
+                    }
+                })
+                expecting = "o"
+                webSocket!!.connect()
+            }
+            // {"type":"WS_SEND","created":"2017-12-14T16:43:34.306Z","message":"[\"0#0|o|\"]"}
+            WSEventType.WS_SEND -> {
+                val msg = replaceTokens(event.message!!, allowedTokens, tokenDictionary)
+                log.debug { "Sent: $msg" }
+                webSocket!!.sendText(msg)
+            }
+        }
     }
 
     fun step() {
         if (expecting != null) {
             log.debug { "Expecting a websocket response..." }
-            val received = receivedEvent.poll(5, TimeUnit.SECONDS)
-            if (wsEventsEqual(expecting!!, received)) {
-                expecting = null
+            val received = receivedWSMessage.poll(5, TimeUnit.SECONDS)
+            if (expecting!! == received) {
                 log.debug { "Expected ${expecting} and was pleasantly surprised to receive ${received}" }
+                expecting = null
             } else {
                 throw IllegalStateException("Expected ${expecting} but received ${received}")
             }
@@ -215,6 +237,13 @@ fun _main(args: Array<String>) = mainBody("player") {
         session.step()
         session.step()
         session.step()
+        session.step()
+        // websocket party time
+        session.step() // WS_OPEN
+        session.step() // WS_RECV
+        session.step() // ... block on receive
+        session.step() // WS_SEND
+        session.webSocket!!.sendClose()
 //        while (!session.isDone())
 //            session.step()
 //        val log = readEventLog(logPath)

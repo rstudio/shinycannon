@@ -1,7 +1,7 @@
 package org.jetbrains.kotlin.testJunit.test
 
 import com.rstudio.getTokens
-import com.rstudio.tokenizeUrl
+import com.rstudio.replaceTokens
 import org.junit.Assert
 import org.junit.Test
 
@@ -20,7 +20,7 @@ class Test {
 
     @Test
     fun testTokenizeUrl() {
-        val url = tokenizeUrl(testUrl, allowedTokens, urlDictionary)
+        val url = replaceTokens(testUrl, allowedTokens, urlDictionary)
         Assert.assertEquals("foo funny! bar very funny!!! ", url)
     }
 
