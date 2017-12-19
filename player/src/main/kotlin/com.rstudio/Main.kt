@@ -8,18 +8,14 @@ import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
 import mu.KLogger
 import mu.KotlinLogging
-import org.organicdesign.fp.collections.PersistentHashMap
-import org.organicdesign.fp.collections.RrbTree
 import java.io.File
 import java.lang.Exception
 import java.security.SecureRandom
 import java.time.Instant
-import java.util.*
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 import javax.websocket.Session
-import kotlin.collections.HashSet
 
 sealed class Event
 
@@ -56,12 +52,12 @@ fun parseLine(line: String): Event {
     }
 }
 
-fun readEventLog(logPath: String): RrbTree<out Event> {
+fun readEventLog(logPath: String): ArrayList<out Event> {
     return File(logPath).readLines()
             .asSequence()
             .filterNot { it.startsWith("#") }
-            .fold(RrbTree.empty<Event>()) { events, line ->
-                events.append(parseLine(line))
+            .fold(ArrayList<Event>()) { events, line ->
+                events.also { it.add(parseLine(line)) }
             }
 }
 
@@ -90,7 +86,7 @@ fun getTokens(url: String): HashSet<String> {
 
 fun tokenizeUrl(url: String,
                 allowedTokens: HashSet<String>,
-                tokenDictionary: PersistentHashMap<String, String>): String {
+                tokenDictionary: HashMap<String, String>): String {
 
     val tokensInUrl = getTokens(url)
     if (allowedTokens.union(tokensInUrl) != allowedTokens) {
@@ -106,12 +102,11 @@ fun tokenizeUrl(url: String,
 }
 
 class ShinySession(val appUrl: String,
-                   var script: RrbTree<out Event>,
+                   var script: ArrayList<out Event>,
                    val log: KLogger) {
 
     val allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID")
-    var urlDictionary: PersistentHashMap<String, String> =  PersistentHashMap.empty<String, String>()
-            .assoc("ROBUST_ID", getRandomHexString())
+    var urlDictionary: HashMap<String, String> = hashMapOf(Pair("ROBUST_ID", getRandomHexString()))
 
     var workerId: String? = null
     var sessionToken: String? = null
@@ -119,7 +114,6 @@ class ShinySession(val appUrl: String,
     var expecting: WSEvent? = null
     var wsSession: Session? = null
     val receivedEvent: LinkedBlockingQueue<WSEvent> = LinkedBlockingQueue(1)
-
 
     init {
         log.debug { "Hello ok!" }
@@ -160,7 +154,7 @@ class ShinySession(val appUrl: String,
                 val re = Pattern.compile("<base href=\"_w_([0-9a-z]+)/")
                 val matcher = re.matcher(response.toString())
                 if (matcher.find()) {
-                    workerId = matcher.group(1)
+                    urlDictionary["WORKER"] = matcher.group(1)
                 } else {
                     throw Exception("Unable to parse worker ID from response to REQ_HOME event. (Perhaps you're running SS Open Source or in local development?)")
                 }
@@ -194,7 +188,7 @@ class ShinySession(val appUrl: String,
             }
         } else if (script.size > 0) {
             handle(script.get(0))
-            script.without(0)
+            script.removeAt(0)
         } else {
             throw IllegalStateException("Can't step; not expecting an event, and out of events to send")
         }
@@ -208,10 +202,16 @@ class Args(parser: ArgParser) {
     val appUrl by parser.storing("URL of the Shiny application to interact with")
 }
 
+fun copyLog(oldScript: ArrayList<out Event>): ArrayList<out Event> {
+    return oldScript.fold(ArrayList<Event>()) { copy, item ->
+        copy.also { it.add(item) }
+    }
+}
+
 fun _main(args: Array<String>) = mainBody("player") {
     Args(ArgParser(args)).run {
-        var log = readEventLog(logPath)
-        val session = ShinySession(appUrl, log, KotlinLogging.logger {})
+        val log = readEventLog(logPath)
+        val session = ShinySession(appUrl, copyLog(log), KotlinLogging.logger {})
         session.step()
         session.step()
         session.step()
@@ -222,7 +222,10 @@ fun _main(args: Array<String>) = mainBody("player") {
     }
 }
 
-//fun main(args: Array<String>) = _main(arrayOf("hello.log"))
-//fun main(args: Array<String>) = _main(args)
-//fun main(args: Array<String>) = _main(arrayOf("--users", "1", "--app-url", "http://localhost:3838/sample-apps/hello/", "geyser-short.log"))
-fun main(args: Array<String>) = _main(arrayOf("--users", "1", "--app-url", "http://10.211.55.6:3838/sample-apps/hello/", "hello.log"))
+fun main(args: Array<String>) {
+    if (System.getProperty("user.name") == "alandipert") {
+        _main(arrayOf("--users", "1", "--app-url", "http://localhost:3838/sample-apps/hello/", "geyser-short.log"))
+    } else {
+        _main(arrayOf("--users", "1", "--app-url", "http://10.211.55.6:3838/sample-apps/hello/", "hello.log"))
+    }
+}
