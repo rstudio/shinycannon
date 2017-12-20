@@ -102,6 +102,18 @@ fun makeWsUrl(httpUrl: String): String {
     return URI("ws", uri.userInfo, uri.host, uri.port, uri.path, uri.query, uri.fragment).toString()
 }
 
+fun parseMessage(msg: String): JsonObject? {
+    val re = Pattern.compile("""^a\["([0-9A-F*]+#)?0\|m\|(.*)"\]${'$'}""")
+    val matcher = re.matcher(msg)
+    val json = JsonParser()
+    if (matcher.find()) {
+        val inner = json.parse("\"${matcher.group(2)}\"").asString
+        return json.parse(inner).asJsonObject
+    } else {
+        return null
+    }
+}
+
 class ShinySession(val appHTTPUrl: String,
                    var script: ArrayList<Event>,
                    val log: KLogger,
@@ -167,24 +179,13 @@ class ShinySession(val appHTTPUrl: String,
         }
     }
 
-    fun await(expecting: WSEventType): String {
+    fun waitForMessage(expecting: WSEventType): String {
         log.debug { "Awaiting receive..." }
         val received = receivedWSMessage.poll(awaitTimeout, awaitTimeoutUnit)
         if (received == null) {
             throw TimeoutException("Timed out waiting to receive $expecting")
         } else {
             return received
-        }
-    }
-
-    fun parseMessage(msg: String): JsonObject? {
-        val re = Pattern.compile("^a\\\\[\\\"([0-9A-F*]+#)?0\\\\|m\\\\|(.*)\\\"\\\\]\$")
-        val matcher = re.matcher(msg)
-        val json = JsonParser()
-        if (matcher.find()) {
-            return json.parse(json.parse(matcher.group(2)).asString).asJsonObject
-        } else {
-            return null
         }
     }
 
@@ -201,6 +202,7 @@ class ShinySession(val appHTTPUrl: String,
                                 TODO("Ignore messages properly, see https://github.com/rstudio/proxyrec/blob/master/lib/shiny-events.js#L598")
                             } else {
                                 log.debug { "WS Received: $msg" }
+                                log.debug { "parsed: '${parseMessage(msg)}'"}
                                 receivedWSMessage.add(replaceTokens(msg, allowedTokens, tokenDictionary))
                             }
                         }
@@ -218,7 +220,8 @@ class ShinySession(val appHTTPUrl: String,
             WSEventType.WS_RECV -> {
                 if (event.message == null)
                     throw IllegalStateException("Expected WS_RECV but message wasn't specified")
-                val received = await(WSEventType.WS_RECV)
+                val received = waitForMessage(WSEventType.WS_RECV)
+                //TODO("Token substitution needs to happen here")
                 if (event.message != received)
                     throw IllegalStateException("Expected WS_RECV with message '${event.message}' but got message '$received'")
             }
@@ -235,8 +238,8 @@ class ShinySession(val appHTTPUrl: String,
         }
     }
 
-    fun step(times: Int = 1) {
-        for (i in 1..times) {
+    fun step(iterations: Int = 1) {
+        for (i in 1..iterations) {
             if (script.size > 0) {
                 handle(script.get(0))
                 script.removeAt(0)
