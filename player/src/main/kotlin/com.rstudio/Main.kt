@@ -182,6 +182,10 @@ class ShinySession(val appHTTPUrl: String,
                         override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?) {
                             log.debug { "New WS state: $newState" }
                         }
+
+                        override fun onError(websocket: WebSocket?, cause: WebSocketException?) {
+                            cause?.printStackTrace()
+                        }
                     })
                     it.connect()
                 }
@@ -245,7 +249,7 @@ class ShinySession(val appHTTPUrl: String,
             if (received == null) {
                 throw TimeoutException("Timed out waiting to receive $expecting")
             } else {
-                receive(received!!)
+                receive(received)
             }
         } else if (script.size > 0) {
             handle(script.get(0))
