@@ -2,6 +2,7 @@ package com.rstudio
 
 import com.github.kittinunf.fuel.core.Response
 import com.github.kittinunf.fuel.httpGet
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.neovisionaries.ws.client.*
 import com.xenomachina.argparser.ArgParser
@@ -105,7 +106,7 @@ class ShinySession(val appHTTPUrl: String,
                    var script: ArrayList<out Event>,
                    val log: KLogger) {
 
-    val allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID")
+    val allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID", "SESSION")
     val tokenDictionary: HashMap<String, String> = hashMapOf(
             Pair("ROBUST_ID", randomHexString(18)),
             Pair("SOCKJSID", "000/${randomHexString(8)}")
@@ -173,23 +174,34 @@ class ShinySession(val appHTTPUrl: String,
         when (event.type) {
             // {"type":"WS_OPEN","created":"2017-12-14T16:43:34.273Z","url":"/__sockjs__/n=${ROBUST_ID}/t=${TOKEN}/w=${WORKER}/s=0/${SOCKJSID}/websocket"}
             WSEventType.WS_OPEN -> {
-                if (webSocket != null) throw Exception("Tried to WS_OPEN but already have a websocket")
+                if (webSocket != null) throw IllegalStateException("Tried to WS_OPEN but already have a websocket")
                 var wsUrl = appWSUrl + replaceTokens(event.url!!, allowedTokens, tokenDictionary)
-                webSocket = WebSocketFactory().createSocket(wsUrl, 5000)
-                webSocket!!.addListener(object : WebSocketAdapter() {
-                    override fun onTextMessage(sock: WebSocket, msg: String) {
-                        log.debug { "Received: $msg" }
-                        receivedWSMessage.add(replaceTokens(msg, allowedTokens, tokenDictionary))
-                    }
-                })
-                expecting = "o"
-                webSocket!!.connect()
+                webSocket = WebSocketFactory().createSocket(wsUrl, 5000).also {
+                    it.addListener(object : WebSocketAdapter() {
+                        override fun onTextMessage(sock: WebSocket, msg: String) {
+                            log.debug { "WS Received: $msg" }
+                            receivedWSMessage.add(replaceTokens(msg, allowedTokens, tokenDictionary))
+                        }
+                    })
+                    it.connect()
+                }
             }
+            // {"type":"WS_RECV","created":"2017-12-14T16:43:34.300Z","message":"o"}
+            WSEventType.WS_RECV -> expecting = replaceTokens(event.message!!, allowedTokens, tokenDictionary)
             // {"type":"WS_SEND","created":"2017-12-14T16:43:34.306Z","message":"[\"0#0|o|\"]"}
             WSEventType.WS_SEND -> {
                 val msg = replaceTokens(event.message!!, allowedTokens, tokenDictionary)
-                log.debug { "Sent: $msg" }
                 webSocket!!.sendText(msg)
+                log.debug { "WS Sent: $msg" }
+            }
+            // {"type":"WS_RECV_INIT","created":"2017-12-14T16:43:34.414Z","message":"a[\"1#0|m|{\\\\\"config\\\\\":{\\\\\"workerId\\\\\":\\\\\"${WORKER}\\\\\",\\\\\"sessionId\\\\\":\\\\\"${SESSION}\\\\\",\\\\\"user\\\\\":null}}\"]"}
+            WSEventType.WS_RECV_INIT -> {
+                fun parseMessage(msg: String): JsonObject {
+                    val js = JsonParser()
+                    return js.parse("{'x':123}").asJsonObject
+                }
+                TODO("parse the recv message and extract the SESSION token")
+                123
             }
         }
     }
@@ -235,9 +247,9 @@ fun _main(args: Array<String>) = mainBody("player") {
         session.step()
         session.step()
         // websocket party time
-        session.step() // WS_OPEN
-        session.step() // WS_RECV
-        session.step() // ... block on receive
+        session.step() // WS_OPEN - creates, connects websocket
+        session.step() // WS_RECV - sets expecting = event.message
+        session.step() // block on receive from message queue
         session.step() // WS_SEND
         session.webSocket!!.sendClose()
 //        while (!session.isDone())
