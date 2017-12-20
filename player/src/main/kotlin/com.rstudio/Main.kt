@@ -19,7 +19,6 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.regex.Pattern
-import javax.websocket.*
 
 sealed class Event
 
@@ -56,7 +55,7 @@ fun parseLine(line: String): Event {
     }
 }
 
-fun readEventLog(logPath: String): ArrayList<out Event> {
+fun readEventLog(logPath: String): ArrayList<Event> {
     return File(logPath).readLines()
             .asSequence()
             .filterNot { it.startsWith("#") }
@@ -91,10 +90,10 @@ fun replaceTokens(str: String,
         throw Exception("$illegalTokens are illegal tokens")
     }
 
-    return tokensInUrl.fold(str) { str, tokenName ->
+    return tokensInUrl.fold(str) { s, tokenName ->
         if (!tokenDictionary.containsKey(tokenName))
             throw Exception("$tokenName is an allowed token, but it isn't present in the dictionary")
-        str.replace("\${$tokenName}", tokenDictionary[tokenName]!!, true)
+        s.replace("\${$tokenName}", tokenDictionary[tokenName]!!, true)
     }
 }
 
@@ -104,8 +103,10 @@ fun makeWsUrl(httpUrl: String): String {
 }
 
 class ShinySession(val appHTTPUrl: String,
-                   var script: ArrayList<out Event>,
-                   val log: KLogger) {
+                   var script: ArrayList<Event>,
+                   val log: KLogger,
+                   val awaitTimeout: Long = 5,
+                   val awaitTimeoutUnit: TimeUnit = TimeUnit.SECONDS) {
 
     val allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID", "SESSION")
     val tokenDictionary: HashMap<String, String> = hashMapOf(
@@ -114,7 +115,6 @@ class ShinySession(val appHTTPUrl: String,
     )
 
     val appWSUrl = makeWsUrl(appHTTPUrl)
-    var expecting: Pair<WSEventType, String?>? = null
     var webSocket: WebSocket? = null
     val receivedWSMessage: LinkedBlockingQueue<String> = LinkedBlockingQueue(1)
 
@@ -167,6 +167,27 @@ class ShinySession(val appHTTPUrl: String,
         }
     }
 
+    fun await(expecting: WSEventType): String {
+        log.debug { "Awaiting receive..." }
+        val received = receivedWSMessage.poll(awaitTimeout, awaitTimeoutUnit)
+        if (received == null) {
+            throw TimeoutException("Timed out waiting to receive $expecting")
+        } else {
+            return received
+        }
+    }
+
+    fun parseMessage(msg: String): JsonObject? {
+        val re = Pattern.compile("^a\\\\[\\\"([0-9A-F*]+#)?0\\\\|m\\\\|(.*)\\\"\\\\]\$")
+        val matcher = re.matcher(msg)
+        val json = JsonParser()
+        if (matcher.find()) {
+            return json.parse(json.parse(matcher.group(2)).asString).asJsonObject
+        } else {
+            return null
+        }
+    }
+
     fun handle(event: WSEvent) {
         when (event.type) {
             // {"type":"WS_OPEN","created":"2017-12-14T16:43:34.273Z","url":"/__sockjs__/n=${ROBUST_ID}/t=${TOKEN}/w=${WORKER}/s=0/${SOCKJSID}/websocket"}
@@ -176,13 +197,16 @@ class ShinySession(val appHTTPUrl: String,
                 webSocket = WebSocketFactory().createSocket(wsUrl, 5000).also {
                     it.addListener(object : WebSocketAdapter() {
                         override fun onTextMessage(sock: WebSocket, msg: String) {
-                            log.debug { "WS Received: $msg" }
-                            receivedWSMessage.add(replaceTokens(msg, allowedTokens, tokenDictionary))
+                            if (msg.startsWith("a[\"ACK")) {
+                                TODO("Ignore messages properly, see https://github.com/rstudio/proxyrec/blob/master/lib/shiny-events.js#L598")
+                            } else {
+                                log.debug { "WS Received: $msg" }
+                                receivedWSMessage.add(replaceTokens(msg, allowedTokens, tokenDictionary))
+                            }
                         }
                         override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?) {
                             log.debug { "New WS state: $newState" }
                         }
-
                         override fun onError(websocket: WebSocket?, cause: WebSocketException?) {
                             cause?.printStackTrace()
                         }
@@ -192,70 +216,33 @@ class ShinySession(val appHTTPUrl: String,
             }
             // {"type":"WS_RECV","created":"2017-12-14T16:43:34.300Z","message":"o"}
             WSEventType.WS_RECV -> {
-                expecting = Pair(WSEventType.WS_RECV, replaceTokens(event.message!!, allowedTokens, tokenDictionary))
-                log.debug { "Now expecting WS_RECV" }
-                step()
+                if (event.message == null)
+                    throw IllegalStateException("Expected WS_RECV but message wasn't specified")
+                val received = await(WSEventType.WS_RECV)
+                if (event.message != received)
+                    throw IllegalStateException("Expected WS_RECV with message '${event.message}' but got message '$received'")
             }
             // {"type":"WS_SEND","created":"2017-12-14T16:43:34.306Z","message":"[\"0#0|o|\"]"}
             WSEventType.WS_SEND -> {
                 val msg = replaceTokens(event.message!!, allowedTokens, tokenDictionary)
                 webSocket!!.sendText(msg)
-                log.debug { "WS Sent: $msg" }
+                log.debug { "WS Sent: '$msg'" }
             }
             // {"type":"WS_RECV_INIT","created":"2017-12-14T16:43:34.414Z","message":"a[\"1#0|m|{\\\\\"config\\\\\":{\\\\\"workerId\\\\\":\\\\\"${WORKER}\\\\\",\\\\\"sessionId\\\\\":\\\\\"${SESSION}\\\\\",\\\\\"user\\\\\":null}}\"]"}
             WSEventType.WS_RECV_INIT -> {
-                expecting = Pair(WSEventType.WS_RECV_INIT, null)
-                log.debug { "Now expecting WS_RECV_INIT" }
-                step()
+                TODO("Parse the response string properly and extract SESSION from it.")
             }
         }
     }
 
-    fun parseWsRecvInitMsg(msg: String): JsonObject {
-        val re = Pattern.compile("^a\\\\[\\\"([0-9A-F*]+#)?0\\\\|m\\\\|(.*)\\\"\\\\]\$")
-        val matcher = re.matcher(msg)
-        val json = JsonParser()
-        if (matcher.find()) {
-            return json.parse(json.parse(matcher.group(2)).asString).asJsonObject
-        } else {
-            throw Exception("Unable to parse WS_RECV_INIT message: $msg")
-        }
-    }
-
-    fun receive(received: String) {
-        val (expectedType, expectedMsg) = expecting!!
-        when (expectedType) {
-            WSEventType.WS_RECV -> {
-                if (expectedMsg == null)
-                    throw IllegalStateException("Expected WS_RECV but message wasn't specified")
-                if (expectedMsg != received)
-                    throw IllegalStateException("Expected WS_RECV with message '${expectedMsg}' but got message '$received'")
-                log.debug { "Received WS_RECV message" }
-                expecting = null
-            }
-            WSEventType.WS_RECV_INIT -> {
-                val obj = parseWsRecvInitMsg(received)
-                tokenDictionary["SESSION"] = obj.get("config").asJsonObject.get("sessionId").asString
-                log.debug { "Received WS_RECV_INIT and set SESSION='${tokenDictionary["SESSION"]}" }
-                expecting = null
-            }
-        }
-    }
-
-    fun step() {
-        if (expecting != null) {
-            log.debug { "Awaiting receive..." }
-            val received: String? = receivedWSMessage.poll(5, TimeUnit.SECONDS)
-            if (received == null) {
-                throw TimeoutException("Timed out waiting to receive $expecting")
+    fun step(times: Int = 1) {
+        for (i in 1..times) {
+            if (script.size > 0) {
+                handle(script.get(0))
+                script.removeAt(0)
             } else {
-                receive(received)
+                throw IllegalStateException("Can't step; not expecting aout of events to send")
             }
-        } else if (script.size > 0) {
-            handle(script.get(0))
-            script.removeAt(0)
-        } else {
-            throw IllegalStateException("Can't step; not expecting an event, and out of events to send")
         }
     }
 }
@@ -267,33 +254,19 @@ class Args(parser: ArgParser) {
     val appUrl by parser.storing("URL of the Shiny application to interact with")
 }
 
-fun copyLog(oldScript: ArrayList<out Event>): ArrayList<out Event> {
-    return oldScript.fold(ArrayList<Event>()) { copy, item ->
-        copy.also { it.add(item) }
-    }
+fun copyLog(log: ArrayList<Event>) = log.fold(ArrayList<Event>()) { copy, e ->
+    copy.also { it.add(e) }
 }
 
 fun _main(args: Array<String>) = mainBody("player") {
     Args(ArgParser(args)).run {
         val log = readEventLog(logPath)
-        val session = ShinySession(appUrl, copyLog(log), KotlinLogging.logger {})
-        session.step()
-        session.step()
-        session.step()
-        session.step()
-        // websocket party time
-        session.step() // WS_OPEN - creates, connects websocket
-        session.step() // WS_RECV - sets expecting = event.message, steps once more to await
-        session.step() // WS_SEND
-        session.step() // WS_SEND
-        session.step() // WS_RECV
-//        session.step() // block on receive from message queue
-//        session.step() // WS_SEND
-        session.webSocket!!.sendClose()
-//        while (!session.isDone())
-//            session.step()
-//        val log = readEventLog(logPath)
-//        log.listIterator().forEach { println(it) }
+        val logger = KotlinLogging.logger {}
+        val session = ShinySession(appUrl, copyLog(log), logger, 5, TimeUnit.SECONDS)
+        session.step(7)
+        logger.debug { "Waiting 10 seconds to close websocket..." }
+        Thread.sleep(10000)
+        session.webSocket?.sendClose()
     }
 }
 
