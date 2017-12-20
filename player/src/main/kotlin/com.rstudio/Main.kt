@@ -254,15 +254,17 @@ class Args(parser: ArgParser) {
     val appUrl by parser.storing("URL of the Shiny application to interact with")
 }
 
-fun copyLog(log: ArrayList<Event>) = log.fold(ArrayList<Event>()) { copy, e ->
-    copy.also { it.add(e) }
+fun <T> ArrayList<T>.shallowCopy(): ArrayList<T> {
+    return this.fold(kotlin.collections.ArrayList<T>()) {
+        copy, x -> copy.also { it.add(x) }
+    }
 }
 
 fun _main(args: Array<String>) = mainBody("player") {
     Args(ArgParser(args)).run {
         val log = readEventLog(logPath)
         val logger = KotlinLogging.logger {}
-        val session = ShinySession(appUrl, copyLog(log), logger, 5, TimeUnit.SECONDS)
+        val session = ShinySession(appUrl, log.shallowCopy(), logger, 5, TimeUnit.SECONDS)
         session.step(7)
         logger.debug { "Waiting 10 seconds to close websocket..." }
         Thread.sleep(10000)
