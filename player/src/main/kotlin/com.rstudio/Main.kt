@@ -15,6 +15,7 @@ import java.lang.Exception
 import java.net.URI
 import java.security.SecureRandom
 import java.time.Instant
+import java.time.Period
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -24,29 +25,36 @@ sealed class Event
 
 enum class HTTPEventType { REQ, REQ_HOME, REQ_SINF, REQ_TOK }
 data class HTTPEvent(val type: HTTPEventType,
-                     val created: Instant,
+                     val created: Long,
                      val url: String,
                      val method: String,
                      val statusCode: Int) : Event()
 
 enum class WSEventType { WS_OPEN, WS_RECV, WS_RECV_INIT, WS_SEND }
 data class WSEvent(val type: WSEventType,
-                   val created: Instant,
+                   val created: Long,
                    val url: String?,
                    val message: String?) : Event()
+
+fun getCreated(e: Event): Long {
+    return when (e) {
+        is HTTPEvent -> e.created
+        is WSEvent -> e.created
+    }
+}
 
 fun parseLine(line: String): Event {
     val obj = JsonParser().parse(line).asJsonObject
     when (obj.get("type").asString) {
         in HTTPEventType.values().map { it.name } ->
             return HTTPEvent(HTTPEventType.valueOf(obj.get("type").asString),
-                    Instant.parse(obj.get("created").asString),
+                    Instant.parse(obj.get("created").asString).toEpochMilli(),
                     obj.get("url").asString,
                     obj.get("method").asString,
                     obj.get("statusCode").asInt)
         in WSEventType.values().map { it.name } ->
             return WSEvent(WSEventType.valueOf(obj.get("type").asString),
-                    Instant.parse(obj.get("created").asString),
+                    Instant.parse(obj.get("created").asString).toEpochMilli(),
                     obj.get("url")?.asString,
                     obj.get("message")?.asString)
         else -> {
@@ -130,16 +138,26 @@ class ShinySession(val appHTTPUrl: String,
     var webSocket: WebSocket? = null
     val receivedWSMessage: LinkedBlockingQueue<String> = LinkedBlockingQueue(1)
 
+    var lastEventCreated: Long
+
+    init {
+        if (script.size > 0) {
+            lastEventCreated = getCreated(script.get(0))
+        } else {
+            throw IllegalArgumentException("script is empty")
+        }
+    }
+
     fun isDone(): Boolean {
         return script.size == 0
     }
 
     fun handle(event: Event) {
+        log.debug { "Handling ${event}" }
         when (event) {
             is WSEvent -> handle(event)
             is HTTPEvent -> handle(event)
         }
-
         log.debug { "Handled ${event}" }
     }
 
@@ -166,6 +184,7 @@ class ShinySession(val appHTTPUrl: String,
             }
             // {"type":"REQ","created":"2017-12-14T16:43:34.045Z","method":"GET","url":"/_w_${WORKER}/__assets__/shiny-server.css","statusCode":200}
             HTTPEventType.REQ -> {
+                Thread.sleep(if (webSocket == null) 0 else (event.created - lastEventCreated).also { log.debug { "Sleeping for ${it}ms" }})
                 httpGet(event)
             }
             // {"type":"REQ_TOK","created":"2017-12-14T16:43:34.182Z","method":"GET","url":"/_w_${WORKER}/__token__?_=1513269814000","statusCode":200}
@@ -233,6 +252,7 @@ class ShinySession(val appHTTPUrl: String,
             }
             // {"type":"WS_SEND","created":"2017-12-14T16:43:34.306Z","message":"[\"0#0|o|\"]"}
             WSEventType.WS_SEND -> {
+                Thread.sleep((event.created - lastEventCreated).also { log.debug { "Sleeping for ${it}ms" }})
                 val msg = replaceTokens(event.message!!, allowedTokens, tokenDictionary)
                 webSocket!!.sendText(msg)
                 log.debug { "WS Sent: '$msg'" }
@@ -248,9 +268,10 @@ class ShinySession(val appHTTPUrl: String,
         for (i in 1..iterations) {
             log.debug { "iteration = $i"}
             if (script.size > 0) {
-                handle(script.get(0))
+                val currentEvent = script.get(0)
+                handle(currentEvent)
+                lastEventCreated = getCreated(currentEvent)
                 script.removeAt(0)
-                //Thread.sleep(1000)
             } else {
                 throw IllegalStateException("Can't step; not expecting aout of events to send")
             }
@@ -275,10 +296,16 @@ fun _main(args: Array<String>) = mainBody("player") {
     Args(ArgParser(args)).run {
         val log = readEventLog(logPath)
         val logger = KotlinLogging.logger {}
-        val session = ShinySession(appUrl, log.shallowCopy(), logger, 10, TimeUnit.SECONDS)
+        val session = ShinySession(appUrl, log.shallowCopy(), logger, 5, TimeUnit.SECONDS)
+//        session.step(7)
+//        Thread.sleep(500)
+//        session.step(1)
+//        Thread.sleep(500)
+//        session.step(1)
         session.step(9)
         logger.debug { "Sleeping for 5 seconds" }
         Thread.sleep(5000)
+        logger.debug { "Done sleeping, closing websocket" }
         session.webSocket?.sendClose()
     }
 }
