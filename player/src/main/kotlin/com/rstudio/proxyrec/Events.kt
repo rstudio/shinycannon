@@ -74,7 +74,7 @@ sealed class Event(open val created: Long) {
             override fun handle(session: ShinySession) {
                 val response = get(session)
                 val re = """.*<base href="_w_([0-9a-z]+)/.*"""
-                        .toRegex(options = setOf(RegexOption.MULTILINE,RegexOption.DOT_MATCHES_ALL))
+                        .toRegex(options = setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL))
                 val match = re.matchEntire(response.toString())
                 val workerId = match?.groupValues?.getOrNull(1)
                 session.tokenDictionary["WORKER"] = workerId ?: throw Exception("Unable to parse worker ID from REQ_HOME response.")
@@ -133,12 +133,12 @@ sealed class Event(open val created: Long) {
             val expectingStr = session.replaceTokens(message)
             val expectingObj = parseMessage(expectingStr)
             if (expectingObj == null) {
-                check (expectingStr == receivedStr) {
+                check(expectingStr == receivedStr) {
                     "Expected string $expectingStr but got $receivedStr"
                 }
             } else {
                 val receivedObj = parseMessage(receivedStr)
-                check (expectingObj.keySet() == receivedObj?.keySet()) {
+                check(expectingObj.keySet() == receivedObj?.keySet()) {
                     "Objects don't have same keys: $expectingObj, $receivedObj"
                 }
             }
@@ -158,6 +158,7 @@ sealed class Event(open val created: Long) {
                   val message: String) : Event(created) {
         override fun sleepBefore(session: ShinySession) =
                 created - session.lastEventCreated
+
         override fun handle(session: ShinySession) {
             val text = session.replaceTokens(message)
             session.webSocket!!.sendText(text)
