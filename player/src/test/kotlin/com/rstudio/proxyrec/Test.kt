@@ -26,6 +26,9 @@ class Test {
         val m1 = """a["1#0|m|{\"config\":{\"sessionId\":\"a string inside\",\"user\":null}}"]"""
         val parsed = parseMessage(m1)
         Assert.assertEquals("a string inside", parsed?.get("config")?.asJsonObject?.get("sessionId")?.asString)
+
+        val m2 = """a["1#0|m|{\"config\":{\"workerId\":\"139eab2\",\"sessionId\":\"abcdefg\",\"user\":null}}"]"""
+        Assert.assertEquals("abcdefg", parseMessage(m2)?.get("config")?.asJsonObject?.get("sessionId")?.asString)
     }
 
     @Test
@@ -43,7 +46,8 @@ class Test {
             """a["2#0|m|{\"busy\":\"busy\"}"]""",
             """a["3#0|m|{\"recalculating\":{\"name\":\"distPlot\",\"status\":\"recalculating\"}}"]""",
             """a["4#0|m|{\"recalculating\":{\"name\":\"distPlot\",\"status\":\"recalculated\"}}"]""",
-            """a["5#0|m|{\"busy\":\"idle\"}"]"""
+            """a["5#0|m|{\"busy\":\"idle\"}"]""",
+            """a["6#0|m|{\"errors\":[],\"values\":[],\"inputMessages\":[]}"]"""
         )
 
         ignorableMessages.forEach { message ->

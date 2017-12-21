@@ -188,10 +188,18 @@ sealed class Event(open val created: Long) {
     class WS_RECV_INIT(override val created: Long,
                        val message: String) : Event(created) {
         override fun handle(session: ShinySession) {
-//            session.log.debug { "WS_RECV_INIT handling..." }
-//            val receivedStr = session.waitForMessage()
-//            session.log.debug { "WS_RECV_INIT received: $receivedStr" }
-            TODO("Parse and validate the response and extract SESSION from it.")
+            val receivedStr = session.waitForMessage()
+            session.log.debug { "WS_RECV_INIT received: $receivedStr" }
+
+            val sessionId = parseMessage(receivedStr)
+                    ?.get("config")
+                    ?.asJsonObject
+                    ?.get("sessionId")
+                    ?.asString
+                    ?: throw IllegalStateException("Expected sessionId from WS_RECV_INIT message")
+
+            session.tokenDictionary["SESSION"] = sessionId
+            session.log.debug { "WS_RECV_INIT got SESSION: ${session.tokenDictionary["SESSION"]}" }
         }
     }
 

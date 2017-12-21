@@ -152,7 +152,7 @@ fun _main(args: Array<String>) = mainBody("player") {
         val log = readEventLog(logPath)
         val logger = KotlinLogging.logger {}
         val session = ShinySession(appUrl, log.shallowCopy(), logger, 5, 5000, 5000)
-        session.step(24)
+        session.step(36)
         logger.debug { "Sleeping for 5 seconds" }
         Thread.sleep(5000)
         logger.debug { "Done sleeping, closing websocket" }
