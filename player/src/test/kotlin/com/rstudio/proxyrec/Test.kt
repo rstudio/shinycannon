@@ -1,8 +1,5 @@
-package org.jetbrains.kotlin.testJunit.test
+package com.rstudio.proxyrec
 
-import com.rstudio.getTokens
-import com.rstudio.parseMessage
-import com.rstudio.replaceTokens
 import org.junit.Assert
 import org.junit.Test
 

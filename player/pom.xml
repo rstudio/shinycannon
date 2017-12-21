@@ -15,7 +15,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <kotlin.version>1.2.10</kotlin.version>
         <junit.version>4.12</junit.version>
-        <main.class>com.rstudio.MainKt</main.class>
+        <main.class>com.rstudio.proxyrec.MainKt</main.class>
     </properties>
 
     <repositories>
@@ -83,6 +83,11 @@
             <groupId>com.neovisionaries</groupId>
             <artifactId>nv-websocket-client</artifactId>
             <version>2.3</version>
+        </dependency>
+        <dependency>
+            <groupId>net.moznion</groupId>
+            <artifactId>uribuilder-tiny</artifactId>
+            <version>2.7.1</version>
         </dependency>
     </dependencies>
 
