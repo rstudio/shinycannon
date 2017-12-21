@@ -27,4 +27,12 @@ class Test {
         val parsed = parseMessage(m1)
         Assert.assertEquals("a string inside", parsed?.get("config")?.asJsonObject?.get("sessionId")?.asString)
     }
+
+    @Test
+    fun testUnescape() {
+        var inStr = """Hello world"""
+        Assert.assertEquals(inStr, unescape(inStr))
+        inStr = "hel\\lo world"
+        Assert.assertEquals("hello world", unescape(inStr))
+    }
 }

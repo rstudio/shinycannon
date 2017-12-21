@@ -50,7 +50,7 @@ sealed class Event(open val created: Long) {
                       open val statusCode: Int) : Event(created) {
 
         fun get(session: ShinySession): Response {
-            val url = replaceTokens(url, session.allowedTokens, session.tokenDictionary)
+            val url = session.replaceTokens(url)
             return (session.httpUrl + url).httpGet().responseString().second.also {
                 if (it.statusCode != statusCode)
                     throw java.lang.Exception("Status ${it.statusCode}, expected ${statusCode}")
