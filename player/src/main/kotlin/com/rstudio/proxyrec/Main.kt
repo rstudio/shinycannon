@@ -16,6 +16,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.regex.Pattern
+import kotlin.concurrent.thread
 
 fun readEventLog(logPath: String): ArrayList<Event> {
     return File(logPath).readLines()
@@ -116,7 +117,7 @@ class ShinySession(val httpUrl: String,
 
     fun step(iterations: Int = 1) {
         for (i in 1..iterations) {
-            log.debug { "iteration = $i" }
+            //log.debug { "iteration = $i" }
             if (script.size > 0) {
                 val currentEvent = script.get(0)
                 Thread.sleep(currentEvent.sleepBefore(this))
@@ -129,9 +130,17 @@ class ShinySession(val httpUrl: String,
         }
     }
 
+    fun replay() {
+        TODO("Run through the original script using the same websocket, session, etc.")
+    }
+
     fun end() {
+        log.debug { "Ending session" }
+        // TODO either assert that there are no pending inbound messages, OR warn about them?
         webSocket?.sendClose()
     }
+
+    fun run() = step(script.size)
 }
 
 class Args(parser: ArgParser) {
@@ -151,12 +160,14 @@ fun _main(args: Array<String>) = mainBody("player") {
     Args(ArgParser(args)).run {
         val log = readEventLog(logPath)
         val logger = KotlinLogging.logger {}
-        val session = ShinySession(appUrl, log.shallowCopy(), logger, 5, 5000, 5000)
-        session.step(36)
-        logger.debug { "Sleeping for 5 seconds" }
-        Thread.sleep(5000)
-        logger.debug { "Done sleeping, closing websocket" }
-        session.end()
+
+        for (i in 1..300) {
+            thread {
+                val session = ShinySession(appUrl, log.shallowCopy(), logger, 5, 5000, 5000)
+                session.run()
+                session.end()
+            }
+        }
     }
 }
 
