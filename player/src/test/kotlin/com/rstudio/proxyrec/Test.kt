@@ -35,4 +35,31 @@ class Test {
         inStr = "hel\\lo world"
         Assert.assertEquals("hello world", unescape(inStr))
     }
+
+    @Test
+    fun testIgnore() {
+        val ignorableMessages = listOf(
+            """a["ACK 2"]""",
+            """a["2#0|m|{\"busy\":\"busy\"}"]""",
+            """a["3#0|m|{\"recalculating\":{\"name\":\"distPlot\",\"status\":\"recalculating\"}}"]""",
+            """a["4#0|m|{\"recalculating\":{\"name\":\"distPlot\",\"status\":\"recalculated\"}}"]""",
+            """a["5#0|m|{\"busy\":\"idle\"}"]"""
+        )
+
+        ignorableMessages.forEach { message ->
+            Assert.assertTrue(canIgnore(message))
+        }
+
+        val notIgnorableMessages = listOf(
+            """o""",
+            """a["0#0|m|{\"custom\":{\"credentials\":null,\"license\":{\"status\":\"activated\",\"evaluation\":false,\"expiration\":1534550400000}}}"]""",
+            """a["1#0|m|{\"config\":{\"workerId\":\"139eab2067146f4b70e4391a9584f782467a5f00320f9897\",\"sessionId\":\"60a1c2cb407f38b89ae0bfe34bd9b12f\",\"user\":null}}"]"""
+        )
+
+        notIgnorableMessages.forEach { message ->
+            Assert.assertFalse(canIgnore(message))
+        }
+    }
+
+
 }

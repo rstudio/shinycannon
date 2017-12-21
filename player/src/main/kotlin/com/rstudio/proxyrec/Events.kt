@@ -2,12 +2,52 @@ package com.rstudio.proxyrec
 
 import com.github.kittinunf.fuel.core.Response
 import com.github.kittinunf.fuel.httpGet
+import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.neovisionaries.ws.client.WebSocket
 import com.neovisionaries.ws.client.WebSocketAdapter
 import com.neovisionaries.ws.client.WebSocketFactory
 import com.neovisionaries.ws.client.WebSocketState
 import java.time.Instant
+
+
+fun canIgnore(message: String):Boolean {
+    // Don't ignore messages matching these exact strings. They're "special".
+    val allow = setOf("o")
+    if (allow.contains(message)) return false
+
+    // Messages matching these regexes should be ignored.
+    val ignorableRegexes = listOf("""^a\["ACK.*$""", """^\["ACK.*$""", """^h$""")
+            .map(::Regex)
+    for (re in ignorableRegexes) if (re.matches(message)) return true
+
+    val messageObject = parseMessage(message)
+
+    if (messageObject == null)
+        throw IllegalStateException("Expected to be able to parse message: $message")
+
+    // If the message contains any of ignorableKeys as a key, then we should ignore it.
+    val ignorableKeys = setOf("busy", "progress", "recalculating")
+    for (key in ignorableKeys) {
+        if (messageObject.keySet().contains(key)) return true
+    }
+
+    // If the message has only one key, "custom", and if that key also points to
+    // an object with one key, "reactlog", then ignore.
+    if (messageObject.takeIf { it.keySet() == setOf("custom") }
+            ?.get("custom")
+            ?.asJsonObject
+            ?.keySet() == setOf("reactlog")) {
+        return true
+    }
+
+    val emptyMessage = JsonParser()
+            .parse("""{"errors":[],"values":[],"inputMessages":[]}""")
+            .asJsonObject
+    if (messageObject == emptyMessage) return true
+
+    return false
+}
 
 sealed class Event(open val created: Long) {
     open fun sleepBefore(session: ShinySession): Long = 0
@@ -106,8 +146,7 @@ sealed class Event(open val created: Long) {
             session.webSocket = WebSocketFactory().createSocket(wsUrl, session.wsConnectTimeoutMs).also {
                 it.addListener(object : WebSocketAdapter() {
                     override fun onTextMessage(sock: WebSocket, msg: String) {
-                        if (msg.startsWith("a[\"ACK")) {
-                            // TODO comprehensive ignore
+                        if (canIgnore(msg)) {
                             session.log.debug { "%%% Ignoring $msg" }
                         } else {
                             session.log.debug { "%%% Received: $msg" }
@@ -130,7 +169,8 @@ sealed class Event(open val created: Long) {
         override fun handle(session: ShinySession) {
             val receivedStr = session.waitForMessage()
             session.log.debug { "WS_RECV received: $receivedStr" }
-            val expectingStr = session.replaceTokens(message)
+            // Because the messages in our log file are extra-escaped, we need to unescape once.
+            val expectingStr = session.replaceTokens(unescape(message))
             val expectingObj = parseMessage(expectingStr)
             if (expectingObj == null) {
                 check(expectingStr == receivedStr) {
@@ -161,7 +201,7 @@ sealed class Event(open val created: Long) {
                 created - session.lastEventCreated
 
         override fun handle(session: ShinySession) {
-            val text = session.replaceTokens(message)
+            val text = session.replaceTokens(unescape(message))
             session.webSocket!!.sendText(text)
             session.log.debug { "WS_SEND sent: $text" }
         }

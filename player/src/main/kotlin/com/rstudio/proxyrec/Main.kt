@@ -42,21 +42,22 @@ fun getTokens(url: String): HashSet<String> {
     return tokens
 }
 
+// Messages strings originating from the server are not escaped. Strings
+// originating from the log file are escaped.
 fun unescape(s: String) = """\\(.)""".toRegex().replace(s, """$1""")
 
 fun replaceTokens(s: String,
                   allowedTokens: HashSet<String>,
                   tokenDictionary: HashMap<String, String>): String {
 
-    val unescaped = unescape(s)
-    val tokensInUrl = getTokens(unescaped)
+    val tokensInUrl = getTokens(s)
 
     if (allowedTokens.union(tokensInUrl) != allowedTokens) {
         val illegalTokens = tokensInUrl.filterNot { allowedTokens.contains(it) }
         throw Exception("$illegalTokens are illegal tokens")
     }
 
-    return tokensInUrl.fold(unescaped) { newS, tokenName ->
+    return tokensInUrl.fold(s) { newS, tokenName ->
         if (!tokenDictionary.containsKey(tokenName))
             throw Exception("$tokenName is an allowed token, but it isn't present in the dictionary")
         newS.replace("\${$tokenName}", tokenDictionary[tokenName]!!, true)
@@ -64,8 +65,14 @@ fun replaceTokens(s: String,
 }
 
 fun parseMessage(msg: String): JsonObject? {
-    val re = Pattern.compile("""^a\["([0-9A-F*]+#)?0\|m\|(.*)"\]${'$'}""")
-    val matcher = re.matcher(msg)
+    // If an unparsed message is from a reconnect-enabled server, it will have a
+    // message ID on it. We want to ignore those for the purposes of looking at
+    // matches, because they can vary sometimes (based on ignorable messages
+    // sneaking into the message stream).
+    val normalized = msg.replace("""^a\["[0-9A-F]+""".toRegex(), """a["*""")
+
+    val re = Pattern.compile("""^a\["(\*#)?0\|m\|(.*)"\]${'$'}""")
+    val matcher = re.matcher(normalized)
     val json = JsonParser()
     if (matcher.find()) {
         val inner = json.parse("\"${matcher.group(2)}\"").asString
@@ -145,7 +152,7 @@ fun _main(args: Array<String>) = mainBody("player") {
         val log = readEventLog(logPath)
         val logger = KotlinLogging.logger {}
         val session = ShinySession(appUrl, log.shallowCopy(), logger, 5, 5000, 5000)
-        session.step(23)
+        session.step(24)
         logger.debug { "Sleeping for 5 seconds" }
         Thread.sleep(5000)
         logger.debug { "Done sleeping, closing websocket" }
