@@ -17,6 +17,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.regex.Pattern
+import java.time.Instant
 import kotlin.concurrent.thread
 
 fun readEventLog(logPath: String): ArrayList<Event> {
@@ -162,14 +163,17 @@ fun _main(args: Array<String>) = mainBody("player") {
         val log = readEventLog(logPath)
         val logger = KotlinLogging.logger {}
 
-        //for (i in 1..10) {
-            //thread {
-                val session = ShinySession(appUrl, log.shallowCopy(), logger, 5, 5000, 5000)
-                //Thread.sleep(Random().nextLong() % 60000)
-                session.run()
-                session.end()
-            //}
-        //}
+        for (i in 1..100L) {
+            thread {
+                Thread.sleep(i*1000)
+                logger.debug { "!! Starting a new process at ${Instant.now()}" }
+                while (true) {
+                    val session = ShinySession(appUrl, log.shallowCopy(), logger, 5, 5000, 5000)
+                    session.run()
+                    session.end()
+                }
+            }
+        }
     }
 }
 
@@ -177,6 +181,6 @@ fun main(args: Array<String>) {
     if (System.getProperty("user.name") == "alandipert") {
         _main(arrayOf("--users", "1", "--app-url", "http://localhost:8080/content/1/", "hello-connect.log"))
     } else {
-        _main(arrayOf("--users", "1", "--app-url", "http://10.211.55.6:3838/sample-apps/hello/", "hello.log"))
+        _main(arrayOf("--users", "1", "--app-url", "http://localhost:8080/content/1/", "hello-connect.log"))
     }
 }
