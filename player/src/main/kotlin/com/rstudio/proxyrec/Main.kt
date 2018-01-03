@@ -167,10 +167,15 @@ fun _main(args: Array<String>) = mainBody("player") {
             thread {
                 Thread.sleep(i*1000)
                 logger.debug { "!! Starting a new process at ${Instant.now()}" }
-                while (true) {
-                    val session = ShinySession(appUrl, log.shallowCopy(), logger, 5, 5000, 5000)
-                    session.run()
-                    session.end()
+                while (true){
+                    val session = ShinySession(appUrl, log.shallowCopy(), logger, 5, 5000, 500000000)
+
+                    try {
+                        session.run()
+                    }
+                    finally {
+                        session.end()
+                    }
                 }
             }
         }
