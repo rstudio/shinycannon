@@ -24,6 +24,7 @@ try {
     container.inside() {
       stage('mvn package') {
         sh """
+        cd player
         mvn package
         """
       }
