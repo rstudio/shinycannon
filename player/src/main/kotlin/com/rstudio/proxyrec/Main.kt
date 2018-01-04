@@ -182,10 +182,11 @@ fun _main(args: Array<String>) = mainBody("player") {
     }
 }
 
-fun main(args: Array<String>) {
-    if (System.getProperty("user.name") == "alandipert") {
-        _main(arrayOf("--users", "1", "--app-url", "http://localhost:8080/content/1/", "hello-connect.log"))
-    } else {
-        _main(arrayOf("--users", "1", "--app-url", "http://localhost:8080/content/1/", "hello-connect.log"))
-    }
-}
+fun main(args: Array<String>) = _main(args)
+//fun main(args: Array<String>) {
+//    if (System.getProperty("user.name") == "alandipert") {
+//        _main(arrayOf("--users", "1", "--app-url", "http://localhost:8080/content/1/", "hello-connect.log"))
+//    } else {
+//        _main(arrayOf("--users", "1", "--app-url", "http://localhost:8080/content/1/", "hello-connect.log"))
+//    }
+//}
