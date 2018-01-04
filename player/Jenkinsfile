@@ -31,8 +31,9 @@ try {
         }
       }
       stage('s3 upload') {
-        // TODO
-        // s3_upload(current_container.os, current_container.arch)
+        sh """
+        aws s3 cp target/player-1.0-jar-with-dependencies.jar s3://rstudio-shiny-server-pro-build/proxyrec-player/player-$(date +"%Y-%m-%d")-$(git rev-parse --short=7 --verify HEAD).jar
+        """
       }
     }
     sendNotifications slack_channel: params.SLACK_CHANNEL
