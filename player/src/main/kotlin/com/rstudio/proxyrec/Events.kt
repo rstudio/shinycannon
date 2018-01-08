@@ -93,7 +93,7 @@ sealed class Event(open val created: Long) {
             val url = session.replaceTokens(url)
             return (session.httpUrl + url).httpGet().responseString().second.also {
                 if (it.statusCode != statusCode)
-                    throw java.lang.Exception("Status ${it.statusCode}, expected ${statusCode}")
+                    throw java.lang.Exception("Status ${it.statusCode}, expected ${statusCode}, URL: ${it.url}")
             }
         }
 
@@ -133,7 +133,7 @@ sealed class Event(open val created: Long) {
                       override val method: String,
                       override val statusCode: Int) : Http(created, url, method, statusCode) {
             override fun handle(session: ShinySession) {
-                session.tokenDictionary["TOKEN"] = String(get(session).data)
+                    session.tokenDictionary["TOKEN"] = String(get(session).data)
             }
         }
     }
