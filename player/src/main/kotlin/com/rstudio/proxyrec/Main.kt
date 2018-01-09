@@ -151,8 +151,9 @@ class ShinySession(val sessionId: Int,
     fun end() {
         log.debug { "Ending session" }
         // TODO either assert that there are no pending inbound messages, OR warn about them?
-        // Thread.sleep(1000)
-        // check( (webSocket?.isOpen ?: false) ) {"Websocket should already be closed"}
+        Thread.sleep(1000)
+        // By this time, the WS_CLOSE event should already have been processed and the websocket should be closed (null is also accepted)
+        check( !((webSocket?.isOpen) ?: false) ) {"Websocket should already be closed"}
     }
     fun run() = step(script.size)
 }
