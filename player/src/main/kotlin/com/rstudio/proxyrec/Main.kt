@@ -151,9 +151,9 @@ class ShinySession(val sessionId: Int,
     fun end() {
         log.debug { "Ending session" }
         // TODO either assert that there are no pending inbound messages, OR warn about them?
-        webSocket?.sendClose()
+        // Thread.sleep(1000)
+        // check( (webSocket?.isOpen ?: false) ) {"Websocket should already be closed"}
     }
-
     fun run() = step(script.size)
 }
 
@@ -219,6 +219,6 @@ fun main(args: Array<String>) {
     if (System.getProperty("user.name") == "alandipert") {
         _main(arrayOf("--output-dir", "test-${Instant.now()}", "--sessions", "1", "--app-url", "http://localhost:8080/content/1/", "hello-connect.log"))
     } else {
-        _main(arrayOf("--sessions", "1", "--app-url", "http://shinyloadtest.rstudioservices.com/content/2/", "hello-connect.log"))
+        _main(arrayOf("--output-dir", "test-${Instant.now()}", "--sessions", "1", "--app-url", "http://shinyloadtest.rstudioservices.com/content/2/", "hello-connect.log"))
     }
 }
