@@ -149,9 +149,13 @@ class ShinySession(val sessionId: Int,
                 Thread.sleep(sleepFor)
                 out.printCsv(sessionId, "PLAYER_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber)
             }
-            currentEvent.handle(this, out)
+            if (!currentEvent.handle(this, out)) {
+                out.printCsv(sessionId, "PLAYER_FAIL", nowMs())
+                return
+            }
             lastEventCreated = currentEvent.created
         }
+        out.printCsv(sessionId, "PLAYER_DONE", nowMs())
     }
 }
 
@@ -191,7 +195,6 @@ class LoadTest(
                         out.printCsv(*columnNames)
                         out.printCsv(i, "PLAYER_SESSION_CREATE", nowMs())
                         session.run(startIntervalMs * i, out)
-                        out.printCsv(i, "PLAYER_SESSION_DONE", nowMs())
                     } finally {
                         session.end()
                     }
