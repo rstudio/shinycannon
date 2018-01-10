@@ -22,7 +22,6 @@ import java.util.*
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Pattern
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
@@ -30,9 +29,10 @@ import kotlin.concurrent.thread
 fun readEventLog(logPath: String): ArrayList<Event> {
     return File(logPath).readLines()
             .asSequence()
-            .filterNot { it.startsWith("#") }
-            .fold(ArrayList()) { events, line ->
-                events.also { it.add(Event.fromLine(line)) }
+            .mapIndexed { idx, line -> Pair(idx + 1, line) }
+            .filterNot { it.second.startsWith("#") }
+            .fold(ArrayList()) { events, (lineNumber, line) ->
+                events.also { it.add(Event.fromLine(lineNumber, line)) }
             }
 }
 
@@ -130,20 +130,35 @@ class ShinySession(val sessionId: Int,
 
         if(webSocket?.isOpen ?: false) {
             log.warn { "Websocket should already be closed" }
+            webSocket?.sendClose()
         }
     }
 
     fun run(startDelayMs: Int = 0, out: PrintWriter) {
-        lastEventCreated = Instant.now().toEpochMilli()
-        if (startDelayMs > 0) Thread.sleep(startDelayMs.toLong())
+        lastEventCreated = nowMs()
+        if (startDelayMs > 0) {
+            out.printCsv(sessionId, "PLAYER_START_INTERVAL_START", nowMs())
+            Thread.sleep(startDelayMs.toLong())
+            out.printCsv(sessionId, "PLAYER_START_INTERVAL_END", nowMs())
+        }
         for (i in 0 until script.size) {
             val currentEvent = script[i]
             val sleepFor = currentEvent.sleepBefore(this)
-            if (sleepFor > 0) Thread.sleep(sleepFor)
-            currentEvent.handle(this)
+            if (sleepFor > 0) {
+                out.printCsv(sessionId, "PLAYER_SLEEPBEFORE_START", nowMs(), currentEvent.lineNumber)
+                Thread.sleep(sleepFor)
+                out.printCsv(sessionId, "PLAYER_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber)
+            }
+            currentEvent.handle(this, out)
             lastEventCreated = currentEvent.created
         }
     }
+}
+
+fun nowMs() = Instant.now().toEpochMilli()
+
+fun PrintWriter.printCsv(vararg columns: Any) {
+    this.println(columns.joinToString(","))
 }
 
 // Represents many users over the course of a test.
@@ -151,15 +166,13 @@ class LoadTest(
         val args: Array<String>,
         val httpUrl: String,
         // Path to input file created by proxyrec record
-               val logPath: String,
-               val wsConnectTimeoutMs: Int = 5000,
-               val awaitTimeoutMs: Int = 5000,
+        val logPath: String,
         // Number of milliseconds to wait between starting sessions.
-               val startDelayMs: Int = 0,
+        val startIntervalMs: Int = 0,
         // Number of sessions to start
-               val numSessions: Int,
+        val numSessions: Int,
         // Path of directory to place session logs
-               val outputDir: File) {
+        val outputDir: File) {
 
     val columnNames = arrayOf("thread_id", "event", "timestamp", "input_line_number", "comment")
 
@@ -175,8 +188,10 @@ class LoadTest(
                 outputFile.printWriter().use { out ->
                     try {
                         out.println("# " + args.joinToString(" "))
-                        out.println(columnNames.joinToString(","))
-                        session.run(startDelayMs*i, out)
+                        out.printCsv(*columnNames)
+                        out.printCsv(i, "PLAYER_SESSION_CREATE", nowMs())
+                        session.run(startIntervalMs * i, out)
+                        out.printCsv(i, "PLAYER_SESSION_DONE", nowMs())
                     } finally {
                         session.end()
                     }
@@ -193,7 +208,7 @@ class Args(parser: ArgParser) {
     val appUrl by parser.storing("URL of the Shiny application to interact with")
     val outputDir by parser.storing("Path to directory to store session logs in for this test run")
             .default("test-logs-${Instant.now()}")
-    val startDelay by parser.storing("Number of milliseconds to wait between starting sessions") { toInt() }
+    val startInterval by parser.storing("Number of milliseconds to wait between starting sessions") { toInt() }
             .default(0)
     val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
         Level.toLevel(this.toUpperCase(), Level.WARN) as Level
@@ -211,7 +226,7 @@ fun main(args: Array<String>) = mainBody("player") {
         val output = File(outputDir)
         check(!output.exists()) { "Output dir already exists" }
         output.mkdirs()
-        val loadTest = LoadTest(args, appUrl, logPath, numSessions = sessions, outputDir = output, startDelayMs = startDelay)
+        val loadTest = LoadTest(args, appUrl, logPath, numSessions = sessions, outputDir = output, startIntervalMs = startInterval)
         loadTest.run()
     }
 }
