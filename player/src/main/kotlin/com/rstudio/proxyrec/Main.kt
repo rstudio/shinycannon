@@ -16,16 +16,14 @@ import org.apache.log4j.PatternLayout
 import java.io.File
 import java.io.PrintWriter
 import java.lang.Exception
-import java.lang.reflect.Modifier
-import java.nio.file.Paths
 import java.security.SecureRandom
+import java.time.Instant
 import java.util.*
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import java.util.regex.Pattern
-import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.regex.Pattern
 import kotlin.concurrent.thread
 
 fun readEventLog(logPath: String): ArrayList<Event> {
@@ -127,7 +125,12 @@ class ShinySession(val sessionId: Int,
     fun end() {
         log.debug { "Ending session" }
         // TODO either assert that there are no pending inbound messages, OR warn about them?
-        webSocket?.sendClose()
+        Thread.sleep(1000)
+        // By this time, the WS_CLOSE event should already have been processed and the websocket should be closed (null is also accepted)
+
+        if(webSocket?.isOpen ?: false) {
+            log.warn { "Websocket should already be closed" }
+        }
     }
 
     fun recordResult(out: PrintWriter, type: String, startedAt: Long, finishedAt: Long) {

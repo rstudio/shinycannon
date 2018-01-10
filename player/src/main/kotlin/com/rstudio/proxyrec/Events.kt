@@ -80,6 +80,7 @@ sealed class Event(open val created: Long) {
                 "WS_RECV" -> WS_RECV(created, obj.get("message").asString)
                 "WS_RECV_INIT" -> WS_RECV_INIT(created, obj.get("message").asString)
                 "WS_SEND" -> WS_SEND(created, obj.get("message").asString)
+                "WS_CLOSE" -> WS_CLOSE(created)
                 else -> throw Exception("Unknown event type: $type")
             }
         }
@@ -218,6 +219,16 @@ sealed class Event(open val created: Long) {
             val text = session.replaceTokens(unescape(message))
             session.webSocket!!.sendText(text)
             session.log.debug { "WS_SEND sent: $text" }
+        }
+    }
+
+    class WS_CLOSE(override val created: Long) : Event(created) {
+        override fun sleepBefore(session: ShinySession) =
+                created - session.lastEventCreated
+
+        override fun handle(session: ShinySession) {
+            session.webSocket!!.sendClose()
+            session.log.debug { "WS_CLOSE sent" }
         }
     }
 }
