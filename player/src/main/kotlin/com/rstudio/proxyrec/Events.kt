@@ -52,6 +52,7 @@ fun canIgnore(message: String):Boolean {
 sealed class Event(open val created: Long) {
     open fun sleepBefore(session: ShinySession): Long = 0
     abstract fun handle(session: ShinySession): Any
+    fun name() = this::class.java.typeName.split("$").last()
 
     companion object {
         fun fromLine(line: String): Event {
@@ -91,9 +92,14 @@ sealed class Event(open val created: Long) {
 
         fun get(session: ShinySession): Response {
             val url = session.replaceTokens(url)
-            return (session.httpUrl + url).httpGet().responseString().second.also {
+            return (session.httpUrl + url)
+                    .httpGet()
+                    .header(Pair("If-Modified-Since", "Thu, 1 Jan 1970 00:00:00 GMT"))
+                    .responseString()
+                    .second
+                    .also {
                 if (it.statusCode != statusCode)
-                    throw java.lang.Exception("Status ${it.statusCode}, expected ${statusCode}, URL: ${it.url}")
+                    throw java.lang.Exception("Status ${it.statusCode}, expected ${statusCode}, Headers: ${it.headers}, Response: ${it.responseMessage} URL: ${it.url}")
             }
         }
 
@@ -102,7 +108,7 @@ sealed class Event(open val created: Long) {
                   override val method: String,
                   override val statusCode: Int) : Http(created, url, method, statusCode) {
             override fun sleepBefore(session: ShinySession) =
-                    if (session.webSocket == null) 0 else (created - session.lastEventCreated)
+                    if (session.webSocket == null) 0 else (created - (session.lastEventCreated ?: created))
 
             override fun handle(session: ShinySession) = get(session)
         }
@@ -206,7 +212,7 @@ sealed class Event(open val created: Long) {
     class WS_SEND(override val created: Long,
                   val message: String) : Event(created) {
         override fun sleepBefore(session: ShinySession) =
-                created - session.lastEventCreated
+                created - (session.lastEventCreated ?: created)
 
         override fun handle(session: ShinySession) {
             val text = session.replaceTokens(unescape(message))

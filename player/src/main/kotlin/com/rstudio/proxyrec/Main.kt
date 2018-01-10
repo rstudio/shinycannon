@@ -9,8 +9,15 @@ import com.xenomachina.argparser.mainBody
 import mu.KLogger
 import mu.KotlinLogging
 import net.moznion.uribuildertiny.URIBuilderTiny
+import org.apache.log4j.ConsoleAppender
+import org.apache.log4j.Level
+import org.apache.log4j.Logger
+import org.apache.log4j.PatternLayout
 import java.io.File
+import java.io.PrintWriter
 import java.lang.Exception
+import java.lang.reflect.Modifier
+import java.nio.file.Paths
 import java.security.SecureRandom
 import java.util.*
 import java.util.concurrent.LinkedBlockingQueue
@@ -18,6 +25,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.regex.Pattern
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
 fun readEventLog(logPath: String): ArrayList<Event> {
@@ -85,19 +93,13 @@ fun parseMessage(msg: String): JsonObject? {
     }
 }
 
-fun <T> ArrayList<T>.shallowCopy(): ArrayList<T> {
-    return this.fold(kotlin.collections.ArrayList<T>()) { copy, x ->
-        copy.also { it.add(x) }
-    }
-}
-
 // Represents a single "user" during the course of a LoadTest.
 class ShinySession(val sessionId: Int,
+                   val sessionCount: AtomicInteger,
                    val outputDir: File,
                    val httpUrl: String,
                    var script: ArrayList<Event>,
                    val log: KLogger,
-                   val receiveQueueSize: Int = 5,
                    val wsConnectTimeoutMs: Int = 5000,
                    val awaitTimeoutMs: Int = 5000) {
 
@@ -110,13 +112,10 @@ class ShinySession(val sessionId: Int,
     )
 
     var webSocket: WebSocket? = null
+    val receiveQueueSize = 5
     val receiveQueue: LinkedBlockingQueue<String> = LinkedBlockingQueue(receiveQueueSize)
 
-    var lastEventCreated: Long
-
-    init {
-        lastEventCreated = script.get(0).created
-    }
+    var lastEventCreated: Long? = null
 
     fun replaceTokens(s: String) = replaceTokens(s, allowedTokens, tokenDictionary)
 
@@ -125,71 +124,83 @@ class ShinySession(val sessionId: Int,
                 throw TimeoutException("Timed out waiting for message")
     }
 
-    fun step(iterations: Int = 1) {
-        for (i in 1..iterations) {
-            //log.debug { "iteration = $i" }
-            if (script.size > 0) {
-                val currentEvent = script.get(0)
-                Thread.sleep(currentEvent.sleepBefore(this))
-                currentEvent.handle(this)
-                // Things we're writing to each line of the log:
-                // Step #, Event type, Sleep time (ms), Elapsed time (ms), Finished timestamp (epoch ms), Finished timestamp (ISO datestime), Succeeded (true/false)
-                // stepNumber, eventType, elapsedMs, finishedMs, finishedAtMs, finishedAtTimestamp, succeeded
-                // 33, "WS_SEND", 534, 423, 340294427947, "2018-01-08 13:34:32.32Z", true
-                lastEventCreated = currentEvent.created
-                script.removeAt(0)
-            } else {
-                throw IllegalStateException("Can't step, out of events")
-            }
-        }
-    }
-
-    fun replay() {
-        TODO("Run through the original script using the same websocket, session, etc.")
-    }
-
     fun end() {
         log.debug { "Ending session" }
         // TODO either assert that there are no pending inbound messages, OR warn about them?
         webSocket?.sendClose()
     }
 
-    fun run() = step(script.size)
+    fun recordResult(out: PrintWriter, type: String, startedAt: Long, finishedAt: Long) {
+        out.println("$type, $startedAt, $finishedAt")
+    }
+
+    fun recordResult(out: PrintWriter, event: Event, body: () -> Any) {
+        recordResult(out, event.name(), body)
+    }
+
+    fun recordResult(out: PrintWriter, type: String, body: () -> Any) {
+        val startedAt = Instant.now().toEpochMilli()
+        body()
+        recordResult(out, type, startedAt, Instant.now().toEpochMilli())
+    }
+
+    fun recordResult(out: PrintWriter, type: String) {
+        val now = Instant.now().toEpochMilli()
+        recordResult(out, type, now, now)
+    }
+
+    fun run(startDelayMs: Int = 0) {
+        lastEventCreated = Instant.now().toEpochMilli()
+        val outputFile = outputDir.toPath().resolve("$sessionId.log").toFile()
+        outputFile.printWriter().use { out ->
+            recordResult(out, "PLAYER_START_DELAY") {
+                Thread.sleep(startDelayMs.toLong())
+            }
+            log.info { "Started session $sessionId (${sessionCount.incrementAndGet()} running)" }
+            for (i in 0 until script.size) {
+                val currentEvent = script[i]
+                val sleepFor = currentEvent.sleepBefore(this)
+                if (sleepFor > 0) {
+                    recordResult(out, "PLAYER_SLEEP") { Thread.sleep(sleepFor) }
+                }
+                recordResult(out, currentEvent) {
+                    currentEvent.handle(this)
+                }
+                lastEventCreated = currentEvent.created
+            }
+            recordResult(out, "PLAYER_DONE")
+            log.info { "Finishing session $sessionId (${sessionCount.get()} running)" }
+        }
+    }
 }
 
 // Represents many users over the course of a test.
 class LoadTest(val httpUrl: String,
-                // Path to input file created by proxyrec record
+        // Path to input file created by proxyrec record
                val logPath: String,
-               val receiveQueueSize: Int = 5,
                val wsConnectTimeoutMs: Int = 5000,
                val awaitTimeoutMs: Int = 5000,
-               // Number of milliseconds to wait between starting sessions.
+        // Number of milliseconds to wait between starting sessions.
                val startDelayMs: Int = 0,
-               // Number of sessions to start
+        // Number of sessions to start
                val numSessions: Int,
-               // Path of directory to place session logs
+        // Path of directory to place session logs
                val outputDir: File) {
 
     fun run() {
         val log = readEventLog(logPath)
         check(log.size > 0) { "input log must not be empty" }
         val logger = KotlinLogging.logger {}
+        val sessionCount = AtomicInteger(0)
+
         for (i in 1..numSessions) {
-            Thread.sleep(startDelayMs.toLong())
             thread {
-                val session = ShinySession(i,
-                        outputDir,
-                        httpUrl,
-                        log.shallowCopy(),
-                        logger,
-                        5,
-                        5000,
-                        500000000)
+                val session = ShinySession(i, sessionCount, outputDir, httpUrl, log, logger)
                 try {
-                    session.run()
+                    session.run(startDelayMs*i)
                 } finally {
                     session.end()
+                    sessionCount.decrementAndGet()
                 }
             }
         }
@@ -202,23 +213,26 @@ class Args(parser: ArgParser) {
             .default(1)
     val appUrl by parser.storing("URL of the Shiny application to interact with")
     val outputDir by parser.storing("Path to directory to store session logs in for this test run")
-}
-
-fun _main(args: Array<String>) = mainBody("player") {
-    Args(ArgParser(args)).run {
-        val output = File(outputDir)
-        check(!output.exists()) { "Output dir already exists" }
-        output.mkdirs()
-        val loadTest = LoadTest(appUrl, logPath, numSessions = sessions, outputDir = output)
-        loadTest.run()
+            .default("test-logs-${Instant.now()}")
+    val startDelay by parser.storing("Number of milliseconds to wait between starting sessions") { toInt() }
+            .default(0)
+    val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
+        Level.toLevel(this.toUpperCase(), Level.WARN) as Level
     }
 }
 
-//fun main(args: Array<String>) = _main(args)
-fun main(args: Array<String>) {
-    if (System.getProperty("user.name") == "alandipert") {
-        _main(arrayOf("--output-dir", "test-${Instant.now()}", "--sessions", "1", "--app-url", "http://localhost:8080/content/1/", "hello-connect.log"))
-    } else {
-        _main(arrayOf("--sessions", "1", "--app-url", "http://shinyloadtest.rstudioservices.com/content/2/", "hello-connect.log"))
+fun main(args: Array<String>) = mainBody("player") {
+    Args(ArgParser(args)).run {
+        val ca = ConsoleAppender()
+        ca.layout = PatternLayout("%5p [%t] %d (%F:%L) - %m%n")
+        ca.threshold = logLevel
+        ca.activateOptions()
+        Logger.getRootLogger().addAppender(ca)
+
+        val output = File(outputDir)
+        check(!output.exists()) { "Output dir already exists" }
+        output.mkdirs()
+        val loadTest = LoadTest(appUrl, logPath, numSessions = sessions, outputDir = output, startDelayMs = startDelay)
+        loadTest.run()
     }
 }
