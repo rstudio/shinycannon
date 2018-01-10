@@ -224,7 +224,7 @@ sealed class Event(open val created: Long) {
 
     class WS_CLOSE(override val created: Long) : Event(created) {
         override fun sleepBefore(session: ShinySession) =
-                created - session.lastEventCreated
+                created - (session.lastEventCreated ?: created)
 
         override fun handle(session: ShinySession) {
             session.webSocket!!.sendClose()

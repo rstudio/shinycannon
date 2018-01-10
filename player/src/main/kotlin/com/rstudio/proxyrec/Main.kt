@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Pattern
+import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
 
 fun readEventLog(logPath: String): ArrayList<Event> {
@@ -93,7 +94,6 @@ fun parseMessage(msg: String): JsonObject? {
 
 // Represents a single "user" during the course of a LoadTest.
 class ShinySession(val sessionId: Int,
-                   val sessionCount: AtomicInteger,
                    val outputDir: File,
                    val httpUrl: String,
                    var script: ArrayList<Event>,
@@ -133,52 +133,23 @@ class ShinySession(val sessionId: Int,
         }
     }
 
-    fun recordResult(out: PrintWriter, type: String, startedAt: Long, finishedAt: Long) {
-        out.println("$type, $startedAt, $finishedAt")
-    }
-
-    fun recordResult(out: PrintWriter, event: Event, body: () -> Any) {
-        recordResult(out, event.name(), body)
-    }
-
-    fun recordResult(out: PrintWriter, type: String, body: () -> Any) {
-        val startedAt = Instant.now().toEpochMilli()
-        body()
-        recordResult(out, type, startedAt, Instant.now().toEpochMilli())
-    }
-
-    fun recordResult(out: PrintWriter, type: String) {
-        val now = Instant.now().toEpochMilli()
-        recordResult(out, type, now, now)
-    }
-
-    fun run(startDelayMs: Int = 0) {
+    fun run(startDelayMs: Int = 0, out: PrintWriter) {
         lastEventCreated = Instant.now().toEpochMilli()
-        val outputFile = outputDir.toPath().resolve("$sessionId.log").toFile()
-        outputFile.printWriter().use { out ->
-            recordResult(out, "PLAYER_START_DELAY") {
-                Thread.sleep(startDelayMs.toLong())
-            }
-            log.info { "Started session $sessionId (${sessionCount.incrementAndGet()} running)" }
-            for (i in 0 until script.size) {
-                val currentEvent = script[i]
-                val sleepFor = currentEvent.sleepBefore(this)
-                if (sleepFor > 0) {
-                    recordResult(out, "PLAYER_SLEEP") { Thread.sleep(sleepFor) }
-                }
-                recordResult(out, currentEvent) {
-                    currentEvent.handle(this)
-                }
-                lastEventCreated = currentEvent.created
-            }
-            recordResult(out, "PLAYER_DONE")
-            log.info { "Finishing session $sessionId (${sessionCount.get()} running)" }
+        if (startDelayMs > 0) Thread.sleep(startDelayMs.toLong())
+        for (i in 0 until script.size) {
+            val currentEvent = script[i]
+            val sleepFor = currentEvent.sleepBefore(this)
+            if (sleepFor > 0) Thread.sleep(sleepFor)
+            currentEvent.handle(this)
+            lastEventCreated = currentEvent.created
         }
     }
 }
 
 // Represents many users over the course of a test.
-class LoadTest(val httpUrl: String,
+class LoadTest(
+        val args: Array<String>,
+        val httpUrl: String,
         // Path to input file created by proxyrec record
                val logPath: String,
                val wsConnectTimeoutMs: Int = 5000,
@@ -190,20 +161,25 @@ class LoadTest(val httpUrl: String,
         // Path of directory to place session logs
                val outputDir: File) {
 
+    val columnNames = arrayOf("thread_id", "event", "timestamp", "input_line_number", "comment")
+
     fun run() {
         val log = readEventLog(logPath)
         check(log.size > 0) { "input log must not be empty" }
         val logger = KotlinLogging.logger {}
-        val sessionCount = AtomicInteger(0)
 
         for (i in 1..numSessions) {
             thread {
-                val session = ShinySession(i, sessionCount, outputDir, httpUrl, log, logger)
-                try {
-                    session.run(startDelayMs*i)
-                } finally {
-                    session.end()
-                    sessionCount.decrementAndGet()
+                val session = ShinySession(i, outputDir, httpUrl, log, logger)
+                val outputFile = outputDir.toPath().resolve("$i.log").toFile()
+                outputFile.printWriter().use { out ->
+                    try {
+                        out.println("# " + args.joinToString(" "))
+                        out.println(columnNames.joinToString(","))
+                        session.run(startDelayMs*i, out)
+                    } finally {
+                        session.end()
+                    }
                 }
             }
         }
@@ -235,7 +211,7 @@ fun main(args: Array<String>) = mainBody("player") {
         val output = File(outputDir)
         check(!output.exists()) { "Output dir already exists" }
         output.mkdirs()
-        val loadTest = LoadTest(appUrl, logPath, numSessions = sessions, outputDir = output, startDelayMs = startDelay)
+        val loadTest = LoadTest(args, appUrl, logPath, numSessions = sessions, outputDir = output, startDelayMs = startDelay)
         loadTest.run()
     }
 }
