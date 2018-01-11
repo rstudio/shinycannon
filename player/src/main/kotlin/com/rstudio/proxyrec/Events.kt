@@ -63,6 +63,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
         try {
             body()
             out.printCsv(session.sessionId, "${name()}_END", nowMs(), lineNumber)
+            out.flush()
         } catch (t: Throwable) {
             session.log.warn(t) { "${name()} failed (line: $lineNumber)" }
             return false
