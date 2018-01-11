@@ -5,6 +5,7 @@ import com.neovisionaries.ws.client.WebSocket
 import com.neovisionaries.ws.client.WebSocketAdapter
 import com.neovisionaries.ws.client.WebSocketFactory
 import com.neovisionaries.ws.client.WebSocketState
+import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.HttpGet
@@ -12,6 +13,7 @@ import org.apache.http.impl.client.HttpClientBuilder
 import java.io.ByteArrayOutputStream
 import java.io.PrintWriter
 import java.time.Instant
+import javax.ws.rs.core.UriBuilder
 
 fun canIgnore(message: String):Boolean {
     // Don't ignore messages matching these exact strings. They're "special".
@@ -112,7 +114,12 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                       open val statusCode: Int) : Event(created, lineNumber) {
 
         fun get(session: ShinySession): String {
-            val url = session.replaceTokens(session.httpUrl + this.url)
+            val renderedUrl = session.replaceTokens(this.url)
+            val url = URIBuilderTiny(session.httpUrl)
+                    .appendPathsByString(renderedUrl)
+                    .build()
+                    .toString()
+
             val cfg = RequestConfig.custom()
                     .setCookieSpec(CookieSpecs.STANDARD)
                     .build()
@@ -210,6 +217,13 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                         override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?) =
                                 session.log.debug { "%%% State $newState" }
                     })
+
+                    it.addHeader("Cookie", session
+                            .cookieStore
+                            .cookies
+                            .map { "${it.name}=${it.value}" }
+                            .joinToString("; "))
+
                     it.connect()
                 }
             }
