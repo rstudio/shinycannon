@@ -1,12 +1,16 @@
 package com.rstudio.proxyrec
 
-import com.github.kittinunf.fuel.core.Response
-import com.github.kittinunf.fuel.httpGet
+import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.neovisionaries.ws.client.WebSocket
 import com.neovisionaries.ws.client.WebSocketAdapter
 import com.neovisionaries.ws.client.WebSocketFactory
 import com.neovisionaries.ws.client.WebSocketState
+import org.apache.http.client.config.CookieSpecs
+import org.apache.http.client.config.RequestConfig
+import org.apache.http.client.methods.HttpGet
+import org.apache.http.impl.client.HttpClientBuilder
+import java.io.ByteArrayOutputStream
 import java.io.PrintWriter
 import java.time.Instant
 
@@ -109,16 +113,27 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                       open val method: String,
                       open val statusCode: Int) : Event(created, lineNumber) {
 
-        fun get(session: ShinySession): Response {
-            val url = session.replaceTokens(url)
-            return (session.httpUrl + url)
-                    .httpGet()
-                    .header(Pair("If-Modified-Since", "Thu, 1 Jan 1970 00:00:00 GMT"))
-                    .responseString()
-                    .second
-                    .also {
-                if (it.statusCode != statusCode)
-                    throw java.lang.Exception("Status ${it.statusCode}, expected ${statusCode}, Headers: ${it.headers}, Response: ${it.responseMessage} URL: ${it.url}")
+        fun get(session: ShinySession): String {
+            val gson = Gson()
+            val url = session.replaceTokens(session.httpUrl + this.url)
+            //val client = HttpClients.createDefault()
+            val cfg = RequestConfig.custom()
+                    .setCookieSpec(CookieSpecs.STANDARD)
+                    .build()
+            val client = HttpClientBuilder
+                    .create()
+                    .setDefaultCookieStore(session.cookieStore)
+                    .setDefaultRequestConfig(cfg)
+                    .build()
+            val get = HttpGet(url)
+            client.execute(get).use { response ->
+                val baos = ByteArrayOutputStream()
+                response.entity.content.copyTo(baos)
+                val body = String(baos.toByteArray())
+                val gotStatus = response.statusLine.statusCode
+                if (response.statusLine.statusCode != statusCode)
+                    error("Status $gotStatus received, expected $statusCode, Response body: $body, URL: $url")
+                return body
             }
         }
 
@@ -145,7 +160,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                     val response = get(session)
                     val re = """.*<base href="_w_([0-9a-z]+)/.*"""
                             .toRegex(options = setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL))
-                    val match = re.matchEntire(response.toString())
+                    val match = re.matchEntire(response)
                     val workerId = match?.groupValues?.getOrNull(1)
                     session.tokenDictionary["WORKER"] = workerId ?: throw Exception("Unable to parse worker ID from REQ_HOME response.")
                 }
@@ -169,7 +184,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                       override val statusCode: Int) : Http(created, lineNumber, url, method, statusCode) {
             override fun handle(session: ShinySession, out: PrintWriter): Boolean {
                 return tryLog(session, out) {
-                    session.tokenDictionary["TOKEN"] = String(get(session).data)
+                    session.tokenDictionary["TOKEN"] = get(session)
                 }
             }
         }

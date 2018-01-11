@@ -9,16 +9,19 @@ import com.xenomachina.argparser.mainBody
 import mu.KLogger
 import mu.KotlinLogging
 import net.moznion.uribuildertiny.URIBuilderTiny
-import org.apache.log4j.ConsoleAppender
+import org.apache.http.impl.client.BasicCookieStore
+import org.apache.log4j.FileAppender
 import org.apache.log4j.Level
 import org.apache.log4j.Logger
 import org.apache.log4j.PatternLayout
 import java.io.File
 import java.io.PrintWriter
 import java.lang.Exception
+import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.Instant
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.regex.Pattern
 import kotlin.collections.ArrayList
@@ -111,6 +114,8 @@ class ShinySession(val sessionId: Int,
 
     var lastEventCreated: Long? = null
 
+    val cookieStore = BasicCookieStore()
+
     fun replaceTokens(s: String) = replaceTokens(s, allowedTokens, tokenDictionary)
 
     fun end() {
@@ -125,13 +130,14 @@ class ShinySession(val sessionId: Int,
         }
     }
 
-    fun run(startDelayMs: Int = 0, out: PrintWriter) {
+    fun run(startDelayMs: Int = 0, out: PrintWriter, stats: Stats) {
         lastEventCreated = nowMs()
         if (startDelayMs > 0) {
             out.printCsv(sessionId, "PLAYER_START_INTERVAL_START", nowMs())
             Thread.sleep(startDelayMs.toLong())
             out.printCsv(sessionId, "PLAYER_START_INTERVAL_END", nowMs())
         }
+        stats.transition(Stats.Transition.RUNNING)
         for (i in 0 until script.size) {
             val currentEvent = script[i]
             val sleepFor = currentEvent.sleepBefore(this)
@@ -141,11 +147,13 @@ class ShinySession(val sessionId: Int,
                 out.printCsv(sessionId, "PLAYER_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber)
             }
             if (!currentEvent.handle(this, out)) {
-                out.printCsv(sessionId, "PLAYER_FAIL", nowMs())
+                stats.transition(Stats.Transition.FAILED)
+                out.printCsv(sessionId, "PLAYER_FAIL", nowMs(), currentEvent.lineNumber)
                 return
             }
             lastEventCreated = currentEvent.created
         }
+        stats.transition(Stats.Transition.DONE)
         out.printCsv(sessionId, "PLAYER_DONE", nowMs())
     }
 }
@@ -154,6 +162,43 @@ fun nowMs() = Instant.now().toEpochMilli()
 
 fun PrintWriter.printCsv(vararg columns: Any) {
     this.println(columns.joinToString(","))
+}
+
+class Stats(val numSessions: Int) {
+    enum class State { WAIT, RUN, DONE, FAIL }
+    enum class Transition { RUNNING, FAILED, DONE }
+    val stats = ConcurrentHashMap(mapOf(
+            State.WAIT to numSessions,
+            State.RUN to 0,
+            State.DONE to 0,
+            State.FAIL to 0
+    ))
+
+    fun transition(t: Transition) {
+        stats.replaceAll { k, v ->
+            when(Pair(t, k)) {
+                Pair(Transition.RUNNING, State.WAIT) -> v-1
+                Pair(Transition.RUNNING, State.RUN) -> v+1
+                Pair(Transition.DONE, State.RUN) -> v-1
+                Pair(Transition.DONE, State.DONE) -> v+1
+                Pair(Transition.FAILED, State.RUN) -> v-1
+                Pair(Transition.FAILED, State.FAIL) -> v+1
+                else -> v
+            }
+        }
+    }
+
+    fun isComplete(): Boolean {
+        return stats.entries
+                .filter { setOf(Stats.State.RUN, Stats.State.WAIT).contains(it.key) }
+                .sumBy { it.value }
+                .equals(0)
+    }
+
+    override fun toString(): String {
+        val copy = stats.toMap()
+        return "Waiting: ${copy[State.WAIT]}, Running: ${copy[State.RUN]}, Failed: ${copy[State.FAIL]}, Done: ${copy[State.DONE]}"
+    }
 }
 
 // Represents many users over the course of a test.
@@ -176,16 +221,26 @@ class LoadTest(
         check(log.size > 0) { "input log must not be empty" }
         val logger = KotlinLogging.logger {}
 
+        val stats = Stats(numSessions)
+
+        thread {
+            while (!stats.isComplete()) {
+                println("${Instant.now().toString()} - $stats")
+                Thread.sleep(5000)
+            }
+            println("${Instant.now().toString()} - $stats")
+        }
+
         for (i in 1..numSessions) {
             thread {
                 val session = ShinySession(i, outputDir, httpUrl, log, logger)
-                val outputFile = outputDir.toPath().resolve("$i.log").toFile()
+                val outputFile = outputDir.toPath().resolve(Paths.get("sessions", "$i.log")).toFile()
                 outputFile.printWriter().use { out ->
                     try {
                         out.println("# " + args.joinToString(" "))
                         out.printCsv(*columnNames)
                         out.printCsv(i, "PLAYER_SESSION_CREATE", nowMs())
-                        session.run(startIntervalMs * i, out)
+                        session.run(startIntervalMs * i, out, stats)
                     } finally {
                         session.end()
                     }
@@ -202,6 +257,7 @@ class Args(parser: ArgParser) {
     val appUrl by parser.storing("URL of the Shiny application to interact with")
     val outputDir by parser.storing("Path to directory to store session logs in for this test run")
             .default("test-logs-${Instant.now()}")
+    val overwriteOutput by parser.flagging("Whether or not to delete the output directory before starting, if it exists already")
     val startInterval by parser.storing("Number of milliseconds to wait between starting sessions") { toInt() }
             .default(0)
     val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
@@ -211,15 +267,27 @@ class Args(parser: ArgParser) {
 
 fun main(args: Array<String>) = mainBody("player") {
     Args(ArgParser(args)).run {
-        val ca = ConsoleAppender()
-        ca.layout = PatternLayout("%5p [%t] %d (%F:%L) - %m%n")
-        ca.threshold = logLevel
-        ca.activateOptions()
-        Logger.getRootLogger().addAppender(ca)
-
         val output = File(outputDir)
-        check(!output.exists()) { "Output dir already exists" }
+        if (output.exists()) {
+            if (overwriteOutput) {
+                output.deleteRecursively()
+            } else {
+                error("Output dir $outputDir already exists and --output-overwrite not set")
+            }
+        }
+
         output.mkdirs()
+        output.toPath().resolve("sessions").toFile().mkdir()
+
+        val fa = FileAppender()
+        fa.layout = PatternLayout("%5p [%t] %d (%F:%L) - %m%n")
+        fa.threshold = logLevel
+        fa.file = output.toPath().resolve("detail.log").toString()
+        fa.activateOptions()
+        Logger.getRootLogger().addAppender(fa)
+
+        println("Logging at $logLevel level to $outputDir/detail.log")
+
         val loadTest = LoadTest(args, appUrl, logPath, numSessions = sessions, outputDir = output, startIntervalMs = startInterval)
         loadTest.run()
     }
