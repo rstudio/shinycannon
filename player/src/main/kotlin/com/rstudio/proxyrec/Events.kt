@@ -1,6 +1,5 @@
 package com.rstudio.proxyrec
 
-import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.neovisionaries.ws.client.WebSocket
 import com.neovisionaries.ws.client.WebSocketAdapter
@@ -114,7 +113,6 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                       open val statusCode: Int) : Event(created, lineNumber) {
 
         fun get(session: ShinySession): String {
-            val gson = Gson()
             val url = session.replaceTokens(session.httpUrl + this.url)
             //val client = HttpClients.createDefault()
             val cfg = RequestConfig.custom()
