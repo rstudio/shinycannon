@@ -114,7 +114,6 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
 
         fun get(session: ShinySession): String {
             val url = session.replaceTokens(session.httpUrl + this.url)
-            //val client = HttpClients.createDefault()
             val cfg = RequestConfig.custom()
                     .setCookieSpec(CookieSpecs.STANDARD)
                     .build()
