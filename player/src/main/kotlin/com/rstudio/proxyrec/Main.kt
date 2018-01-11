@@ -162,6 +162,7 @@ fun nowMs() = Instant.now().toEpochMilli()
 
 fun PrintWriter.printCsv(vararg columns: Any) {
     this.println(columns.joinToString(","))
+    this.flush()
 }
 
 class Stats(val numSessions: Int) {
