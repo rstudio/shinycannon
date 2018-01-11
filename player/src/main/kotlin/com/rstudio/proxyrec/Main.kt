@@ -20,8 +20,6 @@ import java.security.SecureRandom
 import java.time.Instant
 import java.util.*
 import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 import java.util.regex.Pattern
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
@@ -97,9 +95,7 @@ class ShinySession(val sessionId: Int,
                    val outputDir: File,
                    val httpUrl: String,
                    var script: ArrayList<Event>,
-                   val log: KLogger,
-                   val wsConnectTimeoutMs: Int = 5000,
-                   val awaitTimeoutMs: Int = 5000) {
+                   val log: KLogger) {
 
     val wsUrl: String = URIBuilderTiny(httpUrl).setScheme("ws").build().toString()
 
@@ -116,11 +112,6 @@ class ShinySession(val sessionId: Int,
     var lastEventCreated: Long? = null
 
     fun replaceTokens(s: String) = replaceTokens(s, allowedTokens, tokenDictionary)
-
-    fun waitForMessage(): String {
-        return receiveQueue.poll(awaitTimeoutMs.toLong(), TimeUnit.MILLISECONDS) ?:
-                throw TimeoutException("Timed out waiting for message")
-    }
 
     fun end() {
         log.debug { "Ending session" }

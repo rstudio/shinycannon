@@ -210,7 +210,8 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                   val message: String) : Event(created, lineNumber) {
         override fun handle(session: ShinySession, out: PrintWriter): Boolean {
             return tryLog(session, out) {
-                val receivedStr = session.waitForMessage()
+                // Waits indefinitely for a message to become available
+                val receivedStr = session.receiveQueue.take()
                 session.log.debug { "WS_RECV received: $receivedStr" }
                 // Because the messages in our log file are extra-escaped, we need to unescape once.
                 val expectingStr = session.replaceTokens(unescape(message))
@@ -234,7 +235,8 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                        val message: String) : Event(created, lineNumber) {
         override fun handle(session: ShinySession, out: PrintWriter): Boolean {
             return tryLog(session, out) {
-                val receivedStr = session.waitForMessage()
+                // Waits indefinitely for a message to become available
+                val receivedStr = session.receiveQueue.take()
                 session.log.debug { "WS_RECV_INIT received: $receivedStr" }
 
                 val sessionId = parseMessage(receivedStr)
