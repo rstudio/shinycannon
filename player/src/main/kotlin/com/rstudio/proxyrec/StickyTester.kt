@@ -38,9 +38,28 @@ fun main(args: Array<String>) {
     ca.activateOptions()
     Logger.getRootLogger().addAppender(ca)
 
-    val seen: ConcurrentHashMap<String, Int> = ConcurrentHashMap()
-    val cookieStore = BasicCookieStore()
+    var seen: ConcurrentHashMap<String, Int>
+    var cookieStore: BasicCookieStore
 
+    println("Running requests with a new CookieStore each time")
+    seen = ConcurrentHashMap()
+    for(i in 1..10) {
+        cookieStore = BasicCookieStore()
+        val response = get(cookieStore, appUrl)
+        val page = response.second
+        val re = """.*<div>(i-[0-9a-z]+)<.*""".toRegex(options = setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL))
+        val match = re.matchEntire(page)
+        val instanceId = match?.groupValues?.getOrNull(1)!!
+        println(match?.groupValues?.getOrNull(1))
+        seen.compute(instanceId, { k, v -> if (v == null) 1 else v+1 })
+    }
+    println(Gson().toJson(seen))
+
+    println()
+
+    println("Running requests with the same CookieStore each time")
+    seen = ConcurrentHashMap()
+    cookieStore = BasicCookieStore()
     for(i in 1..10) {
         val response = get(cookieStore, appUrl)
         val page = response.second
@@ -48,10 +67,7 @@ fun main(args: Array<String>) {
         val match = re.matchEntire(page)
         val instanceId = match?.groupValues?.getOrNull(1)!!
         println(match?.groupValues?.getOrNull(1))
-        seen.compute(instanceId, { k, v ->
-            if (v == null) 1 else v+1
-        })
+        seen.compute(instanceId, { k, v -> if (v == null) 1 else v+1 })
     }
-
     println(Gson().toJson(seen))
 }
