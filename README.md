@@ -1,10 +1,4 @@
 # proxyrec
 
-**STATUS: Experimental**
-
-Proxyrec is a tool designed to help load test Shiny applications. For full
-documentation visit [shinyloadtest](https://github.com/rstudio/shinyloadtest)
-
-## License
-
-GPLv3
+This project is a work in progress. If you are interested in load testing shiny
+applications, please reach out to sean@rstudio.com. 
