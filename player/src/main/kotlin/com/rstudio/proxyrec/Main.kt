@@ -263,7 +263,7 @@ class Args(parser: ArgParser) {
             .default(0)
     val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
         Level.toLevel(this.toUpperCase(), Level.WARN) as Level
-    }
+    }.default(Level.INFO)
 }
 
 fun main(args: Array<String>) = mainBody("player") {
