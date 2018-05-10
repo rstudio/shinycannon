@@ -133,28 +133,28 @@ class ShinySession(val sessionId: Int,
     fun run(startDelayMs: Int = 0, out: PrintWriter, stats: Stats) {
         lastEventCreated = nowMs()
         if (startDelayMs > 0) {
-            out.printCsv(sessionId, "PLAYER_START_INTERVAL_START", nowMs())
+            out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_START", nowMs())
             Thread.sleep(startDelayMs.toLong())
-            out.printCsv(sessionId, "PLAYER_START_INTERVAL_END", nowMs())
+            out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_END", nowMs())
         }
         stats.transition(Stats.Transition.RUNNING)
         for (i in 0 until script.size) {
             val currentEvent = script[i]
             val sleepFor = currentEvent.sleepBefore(this)
             if (sleepFor > 0) {
-                out.printCsv(sessionId, "PLAYER_SLEEPBEFORE_START", nowMs(), currentEvent.lineNumber)
+                out.printCsv(sessionId, "PLAYBACK_SLEEPBEFORE_START", nowMs(), currentEvent.lineNumber)
                 Thread.sleep(sleepFor)
-                out.printCsv(sessionId, "PLAYER_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber)
+                out.printCsv(sessionId, "PLAYBACK_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber)
             }
             if (!currentEvent.handle(this, out)) {
                 stats.transition(Stats.Transition.FAILED)
-                out.printCsv(sessionId, "PLAYER_FAIL", nowMs(), currentEvent.lineNumber)
+                out.printCsv(sessionId, "PLAYBACK_FAIL", nowMs(), currentEvent.lineNumber)
                 return
             }
             lastEventCreated = currentEvent.created
         }
         stats.transition(Stats.Transition.DONE)
-        out.printCsv(sessionId, "PLAYER_DONE", nowMs())
+        out.printCsv(sessionId, "PLAYBACK_DONE", nowMs())
     }
 }
 
@@ -266,7 +266,7 @@ class Args(parser: ArgParser) {
     }.default(Level.INFO)
 }
 
-fun main(args: Array<String>) = mainBody("player") {
+fun main(args: Array<String>) = mainBody("shinycannon") {
     Args(ArgParser(args)).run {
         val output = File(outputDir)
         if (output.exists()) {
