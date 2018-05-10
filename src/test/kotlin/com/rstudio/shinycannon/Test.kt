@@ -1,4 +1,4 @@
-package com.rstudio.proxyrec
+package com.rstudio.shinycannon
 
 import org.junit.Assert
 import org.junit.Test

@@ -1,4 +1,4 @@
-package com.rstudio.proxyrec
+package com.rstudio.shinycannon
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -206,7 +206,7 @@ class Stats(val numSessions: Int) {
 class LoadTest(
         val args: Array<String>,
         val httpUrl: String,
-        // Path to input file created by proxyrec record
+        // Path to input file created by shinycannon record
         val logPath: String,
         // Number of milliseconds to wait between starting sessions.
         val startIntervalMs: Int = 0,

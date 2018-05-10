@@ -5,17 +5,17 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.rstudio</groupId>
-    <artifactId>player</artifactId>
+    <artifactId>shinycannon</artifactId>
     <version>1.0</version>
     <packaging>jar</packaging>
 
-    <name>com.rstudio proxyrec player</name>
+    <name>shinycannon</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <kotlin.version>1.2.10</kotlin.version>
+        <kotlin.version>1.2.41</kotlin.version>
         <junit.version>4.12</junit.version>
-        <main.class>com.rstudio.proxyrec.MainKt</main.class>
+        <main.class>com.rstudio.shinycannon.MainKt</main.class>
     </properties>
 
     <repositories>

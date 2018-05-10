@@ -1,4 +1,4 @@
-package com.rstudio.proxyrec
+package com.rstudio.shinycannon
 
 import com.google.gson.JsonParser
 import com.neovisionaries.ws.client.WebSocket
@@ -13,7 +13,6 @@ import org.apache.http.impl.client.HttpClientBuilder
 import java.io.ByteArrayOutputStream
 import java.io.PrintWriter
 import java.time.Instant
-import javax.ws.rs.core.UriBuilder
 
 fun canIgnore(message: String):Boolean {
     // Don't ignore messages matching these exact strings. They're "special".
