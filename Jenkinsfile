@@ -24,10 +24,7 @@ try {
       }
       container.inside() {
         stage('mvn package') {
-          sh """
-          cd player
-          mvn package
-          """
+          sh "mvn package"
         }
       }
       stage('s3 upload') {
