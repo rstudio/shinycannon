@@ -63,8 +63,10 @@ class App(val appUrl: String) {
                     xpath(resp.body, "//input[@type='hidden']").fold(
                             mapOf(),
                             { xs, y ->
-                                xs + Pair(y.attributes.getNamedItem("name").nodeValue,
-                                        y.attributes.getNamedItem("value").nodeValue)
+                                xs + listOf("name", "value")
+                                        .map { y.attributes.getNamedItem(it).nodeValue }
+                                        .zipWithNext()
+                                        .first()
                             }
                     )
                 }
@@ -73,7 +75,7 @@ class App(val appUrl: String) {
         }
     }
 
-    val resp = slurp(HttpGet(appUrl))
+    private val resp = slurp(HttpGet(appUrl))
     val server = servedBy(resp)
     val inputs = getInputs(resp, server)
 }
