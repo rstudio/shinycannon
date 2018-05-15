@@ -39,9 +39,7 @@ fun slurp(req: HttpUriRequest): HttpResponse {
             .build()
     client.execute(req).use { response ->
         return HttpResponse(response.statusLine.statusCode,
-                response.allHeaders.fold(mapOf(), { m, h ->
-                    m + Pair(h.name, h.value)
-                }),
+                response.allHeaders.map { Pair(it.name, it.value) }.toMap(),
                 cookies,
                 ByteArrayOutputStream().let { baos ->
                     response.entity.content.copyTo(baos)
@@ -91,7 +89,7 @@ fun getInputs(resp: HttpResponse, server: AppServer): Map<String, String> {
             xpath(resp.body, "//input[@type='hidden']")
                     .map { it.attributes }
                     .map { attrs -> Pair(attrs["name"], attrs["value"]) }
-                    .fold(mapOf(), { m, pair -> m + pair })
+                    .toMap()
         }
         else -> mapOf()
     }
@@ -122,6 +120,9 @@ fun BasicCookieStore.shallowCopy(): BasicCookieStore {
     }
 }
 
+// Stateful container that encapsulates requesting the auth form, extracting
+// necessary data from that response, and incorporating that data into a request
+// that should culminate with an auth cookie (postLogin method).
 class ProtectedApp(val appUrl: String) {
     private val resp = slurp(HttpGet(appUrl))
     val server = servedBy(resp)
