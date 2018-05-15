@@ -75,6 +75,9 @@ fun servedBy(resp: HttpResponse): AppServer {
     return when {
     // TODO figure out why SSP-XSRF not served by 1.5.8.960
         headers["X-Powered-By"] == "Express" -> AppServer.SSP
+    // SSP doesn't report this as of this writing, but probably will soon
+    // https://github.com/rstudio/shiny-server/pull/361
+        headers["X-Powered-By"] == "Shiny Server Pro" -> AppServer.SSP
         headers.containsKey("rscid") -> AppServer.RSC
         else -> AppServer.UNKNOWN
     }
@@ -145,10 +148,10 @@ class ProtectedApp(val appUrl: String) {
         }.let { pairs -> UrlEncodedFormEntity(pairs) }
         client.execute(post).use { _ ->
             return when (server) {
-                AppServer.SSP -> cookies.cookies.firstOrNull { it.name == "session_state" }!!
-                AppServer.RSC -> cookies.cookies.firstOrNull { it.name == "rsconnect" }!!
+                AppServer.SSP -> cookies.cookies.firstOrNull { it.name == "session_state" }
+                AppServer.RSC -> cookies.cookies.firstOrNull { it.name == "rsconnect" }
                 else -> error("Don't know how to post login form to $server")
-            }
+            } ?: error("Couldn't determine auth cookie for $server")
         }
     }
 }
