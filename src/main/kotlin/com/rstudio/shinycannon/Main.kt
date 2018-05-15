@@ -4,6 +4,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.neovisionaries.ws.client.WebSocket
 import com.xenomachina.argparser.ArgParser
+import com.xenomachina.argparser.DefaultHelpFormatter
 import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
 import mu.KLogger
@@ -125,7 +126,7 @@ class ShinySession(val sessionId: Int,
         Thread.sleep(1000)
         // By this time, the WS_CLOSE event should already have been processed and the websocket should be closed (null is also accepted)
 
-        if(webSocket?.isOpen ?: false) {
+        if (webSocket?.isOpen ?: false) {
             log.warn { "Websocket should already be closed" }
             webSocket?.sendClose()
         }
@@ -184,6 +185,7 @@ fun PrintWriter.printCsv(vararg columns: Any) {
 class Stats(val numSessions: Int) {
     enum class State { WAIT, RUN, DONE, FAIL }
     enum class Transition { RUNNING, FAILED, DONE }
+
     val stats = ConcurrentHashMap(mapOf(
             State.WAIT to numSessions,
             State.RUN to 0,
@@ -193,13 +195,13 @@ class Stats(val numSessions: Int) {
 
     fun transition(t: Transition) {
         stats.replaceAll { k, v ->
-            when(Pair(t, k)) {
-                Pair(Transition.RUNNING, State.WAIT) -> v-1
-                Pair(Transition.RUNNING, State.RUN) -> v+1
-                Pair(Transition.DONE, State.RUN) -> v-1
-                Pair(Transition.DONE, State.DONE) -> v+1
-                Pair(Transition.FAILED, State.RUN) -> v-1
-                Pair(Transition.FAILED, State.FAIL) -> v+1
+            when (Pair(t, k)) {
+                Pair(Transition.RUNNING, State.WAIT) -> v - 1
+                Pair(Transition.RUNNING, State.RUN) -> v + 1
+                Pair(Transition.DONE, State.RUN) -> v - 1
+                Pair(Transition.DONE, State.DONE) -> v + 1
+                Pair(Transition.FAILED, State.RUN) -> v - 1
+                Pair(Transition.FAILED, State.FAIL) -> v + 1
                 else -> v
             }
         }
@@ -289,7 +291,14 @@ class Args(parser: ArgParser) {
 }
 
 fun main(args: Array<String>) = mainBody("shinycannon") {
-    Args(ArgParser(args)).run {
+    Args(ArgParser(args, helpFormatter = DefaultHelpFormatter(
+            prologue = "shinycannon is a load generation tool for use with Shiny Server Pro and RStudio Connect.",
+            epilogue = """
+                environment variables:
+                  SHINYCANNON_USER
+                  SHINYCANNON_PASS
+                """.trimIndent()
+    ))).run {
         val output = File(outputDir)
         if (output.exists()) {
             if (overwriteOutput) {
