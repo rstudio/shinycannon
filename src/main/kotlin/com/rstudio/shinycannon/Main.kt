@@ -98,7 +98,8 @@ class ShinySession(val sessionId: Int,
                    val outputDir: File,
                    val httpUrl: String,
                    var script: ArrayList<Event>,
-                   val log: KLogger) {
+                   val log: KLogger,
+                   val credentials: Pair<String, String>?) {
 
     val wsUrl: String = URIBuilderTiny(httpUrl).setScheme("ws").build().toString()
 
@@ -130,7 +131,22 @@ class ShinySession(val sessionId: Int,
         }
     }
 
+    private fun maybeLogin() {
+        credentials?.let { (username, password) ->
+            if (isProtected(httpUrl)) {
+                ProtectedApp(httpUrl).let { app ->
+                    cookieStore.addCookie(app.postLogin(username, password))
+                }
+            } else {
+                log.info {
+                    "SHINYCANNON_USER and SHINYCANNON_PASS are set, but the target app is not protected."
+                }
+            }
+        }
+    }
+
     fun run(startDelayMs: Int = 0, out: PrintWriter, stats: Stats) {
+        maybeLogin()
         lastEventCreated = nowMs()
         if (startDelayMs > 0) {
             out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_START", nowMs())
@@ -234,7 +250,13 @@ class LoadTest(
 
         for (i in 1..numSessions) {
             thread {
-                val session = ShinySession(i, outputDir, httpUrl, log, logger)
+                val creds = listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
+                        .mapNotNull { System.getenv(it) }
+                        .takeIf { it.size == 2 }
+                        ?.zipWithNext()
+                        ?.first()
+
+                val session = ShinySession(i, outputDir, httpUrl, log, logger, creds)
                 val outputFile = outputDir.toPath().resolve(Paths.get("sessions", "$i.log")).toFile()
                 outputFile.printWriter().use { out ->
                     try {

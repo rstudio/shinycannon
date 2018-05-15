@@ -7,6 +7,7 @@ import org.apache.http.client.entity.UrlEncodedFormEntity
 import org.apache.http.client.methods.HttpGet
 import org.apache.http.client.methods.HttpPost
 import org.apache.http.client.methods.HttpUriRequest
+import org.apache.http.cookie.Cookie
 import org.apache.http.impl.client.BasicCookieStore
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.message.BasicNameValuePair
@@ -17,7 +18,6 @@ import org.xml.sax.InputSource
 import java.io.ByteArrayOutputStream
 import java.io.StringReader
 import java.net.URL
-import java.util.ArrayList
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.xpath.XPathConstants
 import javax.xml.xpath.XPathFactory
@@ -109,23 +109,30 @@ fun loginUrlFor(appUrl: String, server: AppServer): String {
                 .appendPaths("__login__")
                 .build()
                 .toString()
-        else -> error("Don't know how to construct login URL for ${server}")
+        else -> error("Don't know how to construct login URL for $server")
     }
 }
 
-class App(val appUrl: String) {
+fun BasicCookieStore.shallowCopy(): BasicCookieStore {
+    return BasicCookieStore().also {
+        this.cookies.forEach { cookie -> it.addCookie(cookie) }
+    }
+}
+
+class ProtectedApp(val appUrl: String) {
     private val resp = slurp(HttpGet(appUrl))
     val server = servedBy(resp)
     val inputs = getInputs(resp, server)
     val loginUrl = loginUrlFor(appUrl, server)
 
-    fun postLogin(username: String, password: String) {
+    fun postLogin(username: String, password: String): Cookie {
+        val cookies = resp.cookies.shallowCopy()
         val cfg = RequestConfig.custom()
                 .setCookieSpec(CookieSpecs.STANDARD)
                 .build()
         val client = HttpClientBuilder
                 .create()
-                .setDefaultCookieStore(resp.cookies)
+                .setDefaultCookieStore(cookies)
                 .setDefaultRequestConfig(cfg)
                 .build()
         val post = HttpPost(loginUrl)
@@ -136,13 +143,12 @@ class App(val appUrl: String) {
         post.entity = formFields.map { entry ->
             BasicNameValuePair(entry.key, entry.value)
         }.let { pairs -> UrlEncodedFormEntity(pairs) }
-        client.execute(post).use { response ->
+        client.execute(post).use { _ ->
+            return when (server) {
+                AppServer.SSP -> cookies.cookies.firstOrNull { it.name == "session_state" }!!
+                AppServer.RSC -> cookies.cookies.firstOrNull { it.name == "rsconnect" }!!
+                else -> error("Don't know how to post login form to $server")
+            }
         }
-
     }
-}
-
-fun main(args: Array<String>) {
-    val app = App("http://localhost:3838/")
-    println(app.inputs)
 }
