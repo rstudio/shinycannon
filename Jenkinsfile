@@ -30,7 +30,7 @@ try {
       stage('s3 upload') {
         sh """
         aws s3 cp target/shinycannon-1.0-jar-with-dependencies.jar s3://rstudio-shinycannon-build/shinycannon-\$(date +"%Y-%m-%d")-\$(git rev-parse --short=7 --verify HEAD).jar
-        aws s3 cp target/shinycannon-1.0-jar-with-dependencies s3://rstudio-shinycannon-build/shinycannon-\$(date +"%Y-%m-%d")-\$(git rev-parse --short=7 --verify HEAD)
+        aws s3 cp target/shinycannon s3://rstudio-shinycannon-build/shinycannon-\$(date +"%Y-%m-%d")-\$(git rev-parse --short=7 --verify HEAD)
         """
       }
     }
