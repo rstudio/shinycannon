@@ -1,7 +1,7 @@
 FROM ubuntu:16.04
 
 RUN apt-get update && \
-  apt-get install -y maven wget zlib1g-dev ruby ruby-dev rubygems build-essential
+  apt-get install -y maven wget zlib1g-dev ruby ruby-dev rubygems build-essential libxml2-utils
 
 # Download and install Graal (for creating standalone binaries)
 RUN mkdir -p /opt/graal
