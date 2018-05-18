@@ -1,0 +1,47 @@
+shinycannon(1) -- load generator for Shiny applications
+=======================================================
+
+## SYNOPSIS
+
+`shinycannon` `--help`<br>
+`shinycannon` <file> --app-url <url>...
+
+## DESCRIPTION
+
+**shinycannon** generates load on Shiny applications by simulating one or more 
+users. The basis for each simulation is a log <file> created using 
+the [shinyRecorder](https://github.com/rstudio/shinyRecorder) R package.
+
+`shinycannon` produces files with timing data that can be used to analyze the 
+performance of the target application underload.
+
+## OPTIONS
+
+  * `-h`, `--help`   
+    Show this help message and exit
+
+  * `--app-url` <url>:
+    URL of the target Shiny application
+
+  * `--sessions` <num>:
+    Number of sessions to simulate, default 1
+
+  * `--output-dir` <directory>:
+    Path to directory to store session logs in for this test run
+
+  * `--overwrite-output`:
+    Whether or not to delete the output directory before starting, if it exists already
+
+  * `--start-interval` <milliseconds>:
+    Number of milliseconds to wait between starting sessions
+
+  * `--log-level` <level>:
+    Log level (default: warn, available include: debug, info, warn, error)
+
+## BUGS
+
+Please open an issue here: <https://github.com/rstudio/shinycannon/issues>.
+
+## COPYRIGHT
+
+`shinycannon` is Copyright (c) 2018 RStudio, Inc.
