@@ -37,7 +37,12 @@ $(DEB_FILE): $(BINDIR)/shinycannon $(MANDIR)/shinycannon.1
 	fpm -t deb $(FPM_ARGS)
 
 RELEASE.txt:
-	echo "$(VERSION)-$(GIT_SHA)" > $@
+	echo $(shell date +"%Y-%m-%d-%T")_$(VERSION)-$(GIT_SHA) > $@
+
+RELEASE_URLS.txt: RELEASE.txt
+	rm -f $@
+	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/deb/$(DEB_FILE) >> $@
+	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/rpm/$(RPM_FILE) >> $@
 
 clean:
 	rm -rf package target

@@ -26,7 +26,7 @@ try {
         stage('build') {
           sh """
           make packages
-          make RELEASE.txt
+          make RELEASE.txt RELEASE_URLS.txt
           """
         }
       }
@@ -34,6 +34,7 @@ try {
       	sh """
       	aws s3 cp *.rpm s3://rstudio-shinycannon-build/\$(cat RELEASE.txt)/rpm/
       	aws s3 cp *.deb s3://rstudio-shinycannon-build/\$(cat RELEASE.txt)/deb/
+      	aws s3 cp RELEASE_URLS.txt s3://rstudio-shinycannon-build/
       	"""
       }
     }
