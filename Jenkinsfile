@@ -32,8 +32,8 @@ try {
       }
       stage('s3 upload') {
       	sh """
-      	aws s3 cp *.rpm s3://rstudio-shinycannon-build/$(cat RELEASE.txt)/rpm/
-      	aws s3 cp *.deb s3://rstudio-shinycannon-build/$(cat RELEASE.txt)/deb/
+      	aws s3 cp *.rpm s3://rstudio-shinycannon-build/\$(cat RELEASE.txt)/rpm/
+      	aws s3 cp *.deb s3://rstudio-shinycannon-build/\$(cat RELEASE.txt)/deb/
       	"""
       }
     }
