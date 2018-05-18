@@ -14,7 +14,7 @@ DEB_FILE=shinycannon_$(VERSION)-$(GIT_SHA)_amd64.deb
 
 BUCKET_NAME=rstudio-shinycannon-build
 
-.PHONY: packages publish clean
+.PHONY: packages RELEASE.txt
 
 packages: $(RPM_FILE) $(DEB_FILE)
 
@@ -36,9 +36,8 @@ $(RPM_FILE): $(BINDIR)/shinycannon $(MANDIR)/shinycannon.1
 $(DEB_FILE): $(BINDIR)/shinycannon $(MANDIR)/shinycannon.1
 	fpm -t deb $(FPM_ARGS)
 
-publish: $(RPM_FILE) $(DEB_FILE)
-	aws s3 cp $(RPM_FILE) s3://$(BUCKET_NAME)/$(VERSION)-$(GIT_SHA)/rpm/
-	aws s3 cp $(DEB_FILE) s3://$(BUCKET_NAME)/$(VERSION)-$(GIT_SHA)/deb/
+RELEASE.txt:
+	echo "$(VERSION)-$(GIT_SHA)" > $@
 
 clean:
 	rm -rf package target

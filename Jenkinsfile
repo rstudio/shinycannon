@@ -24,11 +24,17 @@ try {
       }
       container.inside() {
         stage('build') {
-          sh "make packages"
+          sh """
+          make packages
+          make RELEASE.txt
+          """
         }
       }
       stage('s3 upload') {
-      	sh "make publish"
+      	sh """
+      	aws s3 cp *.rpm s3://rstudio-shinycannon-build/$(cat RELEASE.txt)/rpm/
+      	aws s3 cp *.deb s3://rstudio-shinycannon-build/$(cat RELEASE.txt)/deb/
+      	"""
       }
     }
     sendNotifications slack_channel: params.SLACK_CHANNEL
