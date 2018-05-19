@@ -54,10 +54,6 @@ fun getTokens(url: String): HashSet<String> {
     return tokens
 }
 
-// Messages strings originating from the server are not escaped. Strings
-// originating from the log file are escaped.
-fun unescape(s: String) = """\\(.)""".toRegex().replace(s, """$1""")
-
 fun replaceTokens(s: String,
                   allowedTokens: HashSet<String>,
                   tokenDictionary: HashMap<String, String>): String {

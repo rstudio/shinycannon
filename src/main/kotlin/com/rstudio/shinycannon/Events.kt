@@ -115,7 +115,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
         fun get(session: ShinySession): String {
             val renderedUrl = session.replaceTokens(this.url)
             val url = URIBuilderTiny(session.httpUrl)
-                    .appendPathsByString(renderedUrl)
+                    .appendRawPathsByString(renderedUrl)
                     .build()
                     .toString()
 
@@ -238,7 +238,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                 val receivedStr = session.receiveQueue.take()
                 session.log.debug { "WS_RECV received: $receivedStr" }
                 // Because the messages in our log file are extra-escaped, we need to unescape once.
-                val expectingStr = session.replaceTokens(unescape(message))
+                val expectingStr = session.replaceTokens(message)
                 val expectingObj = parseMessage(expectingStr)
                 if (expectingObj == null) {
                     check(expectingStr == receivedStr) {
@@ -284,7 +284,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
 
         override fun handle(session: ShinySession, out: PrintWriter): Boolean {
             return tryLog(session, out) {
-                val text = session.replaceTokens(unescape(message))
+                val text = session.replaceTokens(message)
                 session.webSocket!!.sendText(text)
                 session.log.debug { "WS_SEND sent: $text" }
             }

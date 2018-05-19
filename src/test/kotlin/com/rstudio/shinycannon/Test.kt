@@ -32,14 +32,6 @@ class Test {
     }
 
     @Test
-    fun testUnescape() {
-        var inStr = """Hello world"""
-        Assert.assertEquals(inStr, unescape(inStr))
-        inStr = "hel\\lo world"
-        Assert.assertEquals("hello world", unescape(inStr))
-    }
-
-    @Test
     fun testIgnore() {
         val ignorableMessages = listOf(
             """a["ACK 2"]""",
