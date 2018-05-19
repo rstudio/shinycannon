@@ -38,7 +38,7 @@ try {
       	"""
       }
     }
-    sendNotifications slack_channel: params.SLACK_CHANNEL
+    // sendNotifications slack_channel: params.SLACK_CHANNEL
   }
 } catch (err) {
    sendNotifications slack_channel: params.SLACK_CHANNEL, result: 'FAILURE'
