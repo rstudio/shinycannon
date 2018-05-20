@@ -21,20 +21,21 @@ packages: $(RPM_FILE) $(DEB_FILE)
 $(UBERJAR):
 	mvn package
 
-$(BINDIR)/shinycannon: $(UBERJAR)
+$(BINDIR)/shinycannon: head.sh $(UBERJAR)
 	mkdir -p $(dir $@)
-	/opt/graal/bin/native-image -H:+ReportUnsupportedElementsAtRuntime -jar $<
-	mv shinycannon-$(VERSION)-jar-with-dependencies $@
+	cat $^ > $@
+	chmod 755 $@
 
 $(MANDIR)/shinycannon.1: shinycannon.1.ronn
 	mkdir -p $(dir $@)
 	cat $< |ronn -r --manual="SHINYCANNON MANUAL" --pipe > $@
 
 $(RPM_FILE): $(BINDIR)/shinycannon $(MANDIR)/shinycannon.1
-	fpm -t rpm $(FPM_ARGS)
+	fpm -t rpm -d java $(FPM_ARGS)
 
+# Install with 'apt update && apt install ./shinycannon_*.deb'
 $(DEB_FILE): $(BINDIR)/shinycannon $(MANDIR)/shinycannon.1
-	fpm -t deb $(FPM_ARGS)
+	fpm -t deb -d default-jre-headless $(FPM_ARGS)
 
 RELEASE.txt:
 	echo $(shell date +"%Y-%m-%d-%T")_$(VERSION)-$(GIT_SHA) > $@
