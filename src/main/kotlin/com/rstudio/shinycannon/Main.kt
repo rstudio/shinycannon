@@ -273,9 +273,9 @@ class LoadTest(
 
 class Args(parser: ArgParser) {
     val logPath by parser.positional("Path to Shiny interaction log file")
+    val appUrl by parser.positional("URL of the Shiny application to interact with")
     val sessions by parser.storing("Number of sessions to simulate. Default is 1.") { toInt() }
             .default(1)
-    val appUrl by parser.storing("URL of the Shiny application to interact with")
     val outputDir by parser.storing("Path to directory to store session logs in for this test run")
             .default("test-logs-${Instant.now()}")
     val overwriteOutput by parser.flagging("Whether or not to delete the output directory before starting, if it exists already")
