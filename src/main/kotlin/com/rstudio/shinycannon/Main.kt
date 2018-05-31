@@ -86,7 +86,8 @@ fun parseMessage(msg: String): JsonObject? {
         val inner = json.parse("\"${matcher.group(2)}\"").asString
         return json.parse(inner).asJsonObject
     } else {
-        return null
+        // Note: if no match found, we're probably running against dev server or SSO
+        return json.parse(msg).asJsonObject
     }
 }
 

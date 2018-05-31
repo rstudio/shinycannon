@@ -164,7 +164,10 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                             .toRegex(options = setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL))
                     val match = re.matchEntire(response)
                     val workerId = match?.groupValues?.getOrNull(1)
-                    session.tokenDictionary["WORKER"] = workerId ?: throw Exception("Unable to parse worker ID from REQ_HOME response.")
+                    workerId?.let {
+                        // Note: If workerId is null, we're probably running against dev server or SSO
+                        session.tokenDictionary["WORKER"] = it
+                    }
                 }
             }
         }
