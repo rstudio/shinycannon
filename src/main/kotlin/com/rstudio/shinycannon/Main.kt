@@ -317,6 +317,11 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
 
         println("Logging at $logLevel level to $outputDir/detail.log")
 
+        val logger = KotlinLogging.logger("Default")
+        Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
+            logger.error(exception, { "Uncaught exception on ${thread.name}" })
+        }
+
         val loadTest = LoadTest(args, appUrl, logPath, numSessions = sessions, outputDir = output, startIntervalMs = startInterval)
         loadTest.run()
     }
