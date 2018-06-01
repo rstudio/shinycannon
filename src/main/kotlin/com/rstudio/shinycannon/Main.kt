@@ -317,9 +317,12 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
 
         println("Logging at $logLevel level to $outputDir/detail.log")
 
-        val logger = KotlinLogging.logger("Default")
-        Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
-            logger.error(exception, { "Uncaught exception on ${thread.name}" })
+        // Set global JVM exception handler before creating any new threads
+        // https://stuartsierra.com/2015/05/27/clojure-uncaught-exceptions
+        KotlinLogging.logger("Default").also {
+            Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
+                it.error(exception, { "Uncaught exception on ${thread.name}" })
+            }
         }
 
         val loadTest = LoadTest(args, appUrl, logPath, numSessions = sessions, outputDir = output, startIntervalMs = startInterval)
