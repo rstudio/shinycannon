@@ -23,7 +23,10 @@ import java.security.SecureRandom
 import java.time.Instant
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Pattern
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
@@ -37,6 +40,8 @@ fun readEventLog(logPath: String): ArrayList<Event> {
                 events.also { it.add(Event.fromLine(lineNumber, line)) }
             }
 }
+
+fun eventlogDuration(events: ArrayList<Event>) = events.last().created - events.first().created
 
 fun randomHexString(numchars: Int): String {
     val r = SecureRandom()
@@ -85,6 +90,8 @@ fun parseMessage(msg: String): JsonObject? {
     if (matcher.find()) {
         val inner = json.parse("\"${matcher.group(2)}\"").asString
         return json.parse(inner).asJsonObject
+    } else  if (msg == "o") {
+        return null
     } else {
         // Note: if no match found, we're probably running against dev server or SSO
         return json.parse(msg).asJsonObject
@@ -179,7 +186,7 @@ fun PrintWriter.printCsv(vararg columns: Any) {
     this.flush()
 }
 
-class Stats(val numSessions: Int) {
+class Stats(numSessions: Int) {
     enum class State { WAIT, RUN, DONE, FAIL }
     enum class Transition { RUNNING, FAILED, DONE }
 
@@ -217,6 +224,12 @@ class Stats(val numSessions: Int) {
     }
 }
 
+fun getCreds() = listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
+        .mapNotNull { System.getenv(it) }
+        .takeIf { it.size == 2 }
+        ?.zipWithNext()
+        ?.first()
+
 // Represents many users over the course of a test.
 class LoadTest(
         val args: Array<String>,
@@ -249,13 +262,7 @@ class LoadTest(
 
         for (i in 1..numSessions) {
             thread {
-                val creds = listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
-                        .mapNotNull { System.getenv(it) }
-                        .takeIf { it.size == 2 }
-                        ?.zipWithNext()
-                        ?.first()
-
-                val session = ShinySession(i, outputDir, httpUrl, log, logger, creds)
+                val session = ShinySession(i, outputDir, httpUrl, log, logger, getCreds())
                 val outputFile = outputDir.toPath().resolve(Paths.get("sessions", "$i.log")).toFile()
                 outputFile.printWriter().use { out ->
                     try {
@@ -272,11 +279,108 @@ class LoadTest(
     }
 }
 
+class EnduranceTest(val args: Array<String>,
+                    val httpUrl: String,
+                    val logPath: String,
+                    // Amount of time to wait between starting sessions until target reached
+                    val warmupInterval: Int = 0,
+                    // Time to maintain target number of sessions
+                    val loadedDurationMinutes: Int,
+                    // Number of sessions to maintain
+                    val numSessions: Int,
+                    val outputDir: File) {
+
+    val columnNames = arrayOf("thread_id", "event", "timestamp", "input_line_number", "comment")
+
+    // Todo: stats should make more sense to endurance test
+    val stats = Stats(0)
+
+    fun run() {
+        val logger = KotlinLogging.logger {}
+        val log = readEventLog(logPath)
+        check(log.size > 0) { "input log must not be empty" }
+        val warmupTime = numSessions*warmupInterval
+        check(eventlogDuration(log) > warmupTime) {
+            "For endurance tests, log must be longer than total warmup time (warmupInterval * numSessions)"
+        }
+
+        val keepWorking = AtomicBoolean(true)
+        val keepShowingStats = AtomicBoolean(true)
+        val sessionNum = AtomicInteger(1)
+
+        fun makeOutputFile(num: Int) = outputDir
+                .toPath()
+                .resolve(Paths.get("sessions", "$num.log"))
+                .toFile()
+
+        fun startSession(num: Int, delay: Int = 0) {
+            val session = ShinySession(num, outputDir, httpUrl, log, logger, getCreds())
+            val outputFile = makeOutputFile(num)
+            outputFile.printWriter().use { out ->
+                try {
+                    out.println("# " + args.joinToString(" "))
+                    out.printCsv(*columnNames)
+                    out.printCsv(num, "PLAYER_SESSION_CREATE", nowMs())
+                    session.run(delay, out, stats)
+                } finally {
+                    session.end()
+                }
+            }
+        }
+
+        // Continuous status output
+        thread {
+            while (keepShowingStats.get()) {
+                println("${Instant.now().toString()} - $stats")
+                Thread.sleep(1000)
+            }
+            println("${Instant.now().toString()} - $stats")
+        }
+
+        val warmupCountdown = CountDownLatch(numSessions)
+        val finishedCountdown = CountDownLatch(numSessions)
+
+        // Warmup and maintenance
+        for (i in 1..numSessions) {
+            thread {
+                val num = sessionNum.getAndIncrement()
+                // First session starts after some delay
+                Thread.sleep(num*warmupInterval.toLong())
+                warmupCountdown.countDown()
+                startSession(num)
+                while (keepWorking.get()) {
+                    // Subsequent sessions start immediately
+                    startSession(sessionNum.getAndIncrement())
+                }
+                println("Worker thread $i stopped")
+                finishedCountdown.countDown()
+            }
+        }
+
+        println("Waiting for warmup to complete")
+        warmupCountdown.await()
+        println("Warmup complete, maintaining for ${loadedDurationMinutes} minutes")
+        val stopAt = nowMs()+(loadedDurationMinutes*60*1000)
+
+        while (nowMs() < stopAt) Thread.sleep(1000)
+
+        println("Stopped maintaining, waiting for workers to stop")
+        keepWorking.set(false)
+
+        finishedCountdown.await()
+        keepShowingStats.set(false)
+    }
+
+}
+
 class Args(parser: ArgParser) {
     val logPath by parser.positional("Path to Shiny interaction log file")
     val appUrl by parser.positional("URL of the Shiny application to interact with")
     val sessions by parser.storing("Number of sessions to simulate. Default is 1.") { toInt() }
             .default(1)
+    val mode by parser.storing("Run mode: load or endurance")
+            .default("load")
+    val loadedDurationMinutes by parser.storing("Number of minutes to maintain load in endurance mode") { toInt() }
     val outputDir by parser.storing("Path to directory to store session logs in for this test run")
             .default("test-logs-${Instant.now()}")
     val overwriteOutput by parser.flagging("Whether or not to delete the output directory before starting, if it exists already")
@@ -325,7 +429,25 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
             }
         }
 
-        val loadTest = LoadTest(args, appUrl, logPath, numSessions = sessions, outputDir = output, startIntervalMs = startInterval)
-        loadTest.run()
+        when (mode) {
+            "load" -> {
+                val loadTest = LoadTest(args, appUrl, logPath, numSessions = sessions, outputDir = output, startIntervalMs = startInterval)
+                loadTest.run()
+            }
+            "endurance" -> {
+                check(loadedDurationMinutes > 0)
+                val loadTest = EnduranceTest(
+                    args,
+                    appUrl,
+                    logPath,
+                    numSessions = sessions,
+                    outputDir = output,
+                    warmupInterval = startInterval,
+                    loadedDurationMinutes = loadedDurationMinutes
+                )
+                loadTest.run()
+            }
+            else -> error("Unknown mode: $mode")
+        }
     }
 }
