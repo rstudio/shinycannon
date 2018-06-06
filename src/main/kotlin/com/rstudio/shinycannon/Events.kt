@@ -301,7 +301,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
 
         override fun handle(session: ShinySession, out: PrintWriter): Boolean {
             return tryLog(session, out) {
-                session.webSocket!!.sendClose()
+                session.webSocket!!.disconnect()
                 session.log.debug { "WS_CLOSE sent" }
             }
         }

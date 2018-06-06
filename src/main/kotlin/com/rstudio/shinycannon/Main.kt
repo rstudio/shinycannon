@@ -124,18 +124,6 @@ class ShinySession(val sessionId: Int,
 
     fun replaceTokens(s: String) = replaceTokens(s, allowedTokens, tokenDictionary)
 
-    fun end() {
-        log.debug { "Ending session" }
-        // TODO either assert that there are no pending inbound messages, OR warn about them?
-        Thread.sleep(1000)
-        // By this time, the WS_CLOSE event should already have been processed and the websocket should be closed (null is also accepted)
-
-        if (webSocket?.isOpen ?: false) {
-            log.warn { "Websocket should already be closed" }
-            webSocket?.sendClose()
-        }
-    }
-
     private fun maybeLogin() {
         credentials?.let { (username, password) ->
             if (isProtected(httpUrl)) {
@@ -230,6 +218,11 @@ fun getCreds() = listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
         ?.zipWithNext()
         ?.first()
 
+@Synchronized
+fun info(msg: String) {
+    println("${Instant.now().toString()} - $msg")
+}
+
 // Represents many users over the course of a test.
 class LoadTest(
         val args: Array<String>,
@@ -248,6 +241,7 @@ class LoadTest(
     fun run() {
         val log = readEventLog(logPath)
         check(log.size > 0) { "input log must not be empty" }
+        check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
         val logger = KotlinLogging.logger {}
 
         val stats = Stats(numSessions)
@@ -265,14 +259,10 @@ class LoadTest(
                 val session = ShinySession(i, outputDir, httpUrl, log, logger, getCreds())
                 val outputFile = outputDir.toPath().resolve(Paths.get("sessions", "$i.log")).toFile()
                 outputFile.printWriter().use { out ->
-                    try {
-                        out.println("# " + args.joinToString(" "))
-                        out.printCsv(*columnNames)
-                        out.printCsv(i, "PLAYER_SESSION_CREATE", nowMs())
-                        session.run(startIntervalMs * i, out, stats)
-                    } finally {
-                        session.end()
-                    }
+                    out.println("# " + args.joinToString(" "))
+                    out.printCsv(*columnNames)
+                    out.printCsv(i, "PLAYER_SESSION_CREATE", nowMs())
+                    session.run(startIntervalMs * i, out, stats)
                 }
             }
         }
@@ -299,6 +289,7 @@ class EnduranceTest(val args: Array<String>,
         val logger = KotlinLogging.logger {}
         val log = readEventLog(logPath)
         check(log.size > 0) { "input log must not be empty" }
+        check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
         val warmupTime = numSessions*warmupInterval
         check(eventlogDuration(log) > warmupTime) {
             "For endurance tests, log must be longer than total warmup time (warmupInterval * numSessions)"
@@ -317,22 +308,18 @@ class EnduranceTest(val args: Array<String>,
             val session = ShinySession(num, outputDir, httpUrl, log, logger, getCreds())
             val outputFile = makeOutputFile(num)
             outputFile.printWriter().use { out ->
-                try {
-                    out.println("# " + args.joinToString(" "))
-                    out.printCsv(*columnNames)
-                    out.printCsv(num, "PLAYER_SESSION_CREATE", nowMs())
-                    session.run(delay, out, stats)
-                } finally {
-                    session.end()
-                }
+                out.println("# " + args.joinToString(" "))
+                out.printCsv(*columnNames)
+                out.printCsv(num, "PLAYER_SESSION_CREATE", nowMs())
+                session.run(delay, out, stats)
             }
         }
 
         // Continuous status output
         thread {
             while (keepShowingStats.get()) {
-                println("${Instant.now().toString()} - $stats")
-                Thread.sleep(1000)
+                info(stats.toString())
+                Thread.sleep(5000)
             }
             println("${Instant.now().toString()} - $stats")
         }
@@ -346,27 +333,25 @@ class EnduranceTest(val args: Array<String>,
                 val num = sessionNum.getAndIncrement()
                 // First session starts after some delay
                 Thread.sleep(num*warmupInterval.toLong())
+                info("Worker thread $i warming up")
                 warmupCountdown.countDown()
                 startSession(num)
                 while (keepWorking.get()) {
                     // Subsequent sessions start immediately
+                    info("Worker thread $i running again")
                     startSession(sessionNum.getAndIncrement())
                 }
-                println("Worker thread $i stopped")
+                info("Worker thread $i stopped")
                 finishedCountdown.countDown()
             }
         }
 
-        println("Waiting for warmup to complete")
+        info("Waiting for warmup to complete")
         warmupCountdown.await()
-        println("Warmup complete, maintaining for ${loadedDurationMinutes} minutes")
-        val stopAt = nowMs()+(loadedDurationMinutes*60*1000)
-
-        while (nowMs() < stopAt) Thread.sleep(1000)
-
-        println("Stopped maintaining, waiting for workers to stop")
+        info("Maintaining for $loadedDurationMinutes minutes")
+        Thread.sleep(loadedDurationMinutes*60*1000.toLong())
+        info("Stopped maintaining, waiting for workers to stop")
         keepWorking.set(false)
-
         finishedCountdown.await()
         keepShowingStats.set(false)
     }
@@ -381,6 +366,7 @@ class Args(parser: ArgParser) {
     val mode by parser.storing("Run mode: load or endurance")
             .default("load")
     val loadedDurationMinutes by parser.storing("Number of minutes to maintain load in endurance mode") { toInt() }
+            .default(null)
     val outputDir by parser.storing("Path to directory to store session logs in for this test run")
             .default("test-logs-${Instant.now()}")
     val overwriteOutput by parser.flagging("Whether or not to delete the output directory before starting, if it exists already")
@@ -435,7 +421,6 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
                 loadTest.run()
             }
             "endurance" -> {
-                check(loadedDurationMinutes > 0)
                 val loadTest = EnduranceTest(
                     args,
                     appUrl,
@@ -443,7 +428,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
                     numSessions = sessions,
                     outputDir = output,
                     warmupInterval = startInterval,
-                    loadedDurationMinutes = loadedDurationMinutes
+                    loadedDurationMinutes = loadedDurationMinutes!!
                 )
                 loadTest.run()
             }
