@@ -223,52 +223,6 @@ fun info(msg: String) {
     println("${Instant.now().toString()} - $msg")
 }
 
-// Represents many users over the course of a test.
-class LoadTest(
-        val args: Array<String>,
-        val httpUrl: String,
-        // Path to input file created by shinycannon record
-        val logPath: String,
-        // Number of milliseconds to wait between starting sessions.
-        val startIntervalMs: Int = 0,
-        // Number of sessions to start
-        val numSessions: Int,
-        // Path of directory to place session logs
-        val outputDir: File) {
-
-    val columnNames = arrayOf("thread_id", "event", "timestamp", "input_line_number", "comment")
-
-    fun run() {
-        val log = readEventLog(logPath)
-        check(log.size > 0) { "input log must not be empty" }
-        check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
-        val logger = KotlinLogging.logger {}
-
-        val stats = Stats(numSessions)
-
-        thread {
-            while (!stats.isComplete()) {
-                println("${Instant.now().toString()} - $stats")
-                Thread.sleep(5000)
-            }
-            println("${Instant.now().toString()} - $stats")
-        }
-
-        for (i in 1..numSessions) {
-            thread {
-                val session = ShinySession(i, outputDir, httpUrl, log, logger, getCreds())
-                val outputFile = outputDir.toPath().resolve(Paths.get("sessions", "$i.log")).toFile()
-                outputFile.printWriter().use { out ->
-                    out.println("# " + args.joinToString(" "))
-                    out.printCsv(*columnNames)
-                    out.printCsv(i, "PLAYER_SESSION_CREATE", nowMs())
-                    session.run(startIntervalMs * i, out, stats)
-                }
-            }
-        }
-    }
-}
-
 class EnduranceTest(val args: Array<String>,
                     val httpUrl: String,
                     val logPath: String,
@@ -363,10 +317,7 @@ class Args(parser: ArgParser) {
     val appUrl by parser.positional("URL of the Shiny application to interact with")
     val sessions by parser.storing("Number of sessions to simulate. Default is 1.") { toInt() }
             .default(1)
-    val mode by parser.storing("Run mode: load or endurance")
-            .default("load")
     val loadedDurationMinutes by parser.storing("Number of minutes to maintain load in endurance mode") { toInt() }
-            .default(null)
     val outputDir by parser.storing("Path to directory to store session logs in for this test run")
             .default("test-logs-${Instant.now()}")
     val overwriteOutput by parser.flagging("Whether or not to delete the output directory before starting, if it exists already")
@@ -415,24 +366,15 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
             }
         }
 
-        when (mode) {
-            "load" -> {
-                val loadTest = LoadTest(args, appUrl, logPath, numSessions = sessions, outputDir = output, startIntervalMs = startInterval)
-                loadTest.run()
-            }
-            "endurance" -> {
-                val loadTest = EnduranceTest(
-                    args,
-                    appUrl,
-                    logPath,
-                    numSessions = sessions,
-                    outputDir = output,
-                    warmupInterval = startInterval,
-                    loadedDurationMinutes = loadedDurationMinutes!!
-                )
-                loadTest.run()
-            }
-            else -> error("Unknown mode: $mode")
-        }
+        val loadTest = EnduranceTest(
+                args,
+                appUrl,
+                logPath,
+                numSessions = sessions,
+                outputDir = output,
+                warmupInterval = startInterval,
+                loadedDurationMinutes = loadedDurationMinutes
+        )
+        loadTest.run()
     }
 }
