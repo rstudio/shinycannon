@@ -317,7 +317,8 @@ class Args(parser: ArgParser) {
     val appUrl by parser.positional("URL of the Shiny application to interact with")
     val sessions by parser.storing("Number of sessions to simulate. Default is 1.") { toInt() }
             .default(1)
-    val loadedDurationMinutes by parser.storing("Number of minutes to maintain load in endurance mode") { toInt() }
+    val loadedDurationMinutes by parser.storing("Number of minutes to maintain load after all sessions have started.") { toInt() }
+            .default(0)
     val outputDir by parser.storing("Path to directory to store session logs in for this test run")
             .default("test-logs-${Instant.now()}")
     val overwriteOutput by parser.flagging("Whether or not to delete the output directory before starting, if it exists already")
