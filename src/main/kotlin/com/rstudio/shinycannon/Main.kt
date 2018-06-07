@@ -342,7 +342,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
             if (overwriteOutput) {
                 output.deleteRecursively()
             } else {
-                error("Output dir $outputDir already exists and --output-overwrite not set")
+                error("Output dir $outputDir already exists and --overwrite-output not set")
             }
         }
 
