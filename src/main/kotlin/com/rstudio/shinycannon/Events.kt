@@ -9,10 +9,13 @@ import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.HttpGet
+import org.apache.http.client.methods.HttpPost
+import org.apache.http.entity.ByteArrayEntity
 import org.apache.http.impl.client.HttpClientBuilder
 import java.io.ByteArrayOutputStream
 import java.io.PrintWriter
 import java.time.Instant
+import java.util.*
 
 fun canIgnore(message: String):Boolean {
     // Don't ignore messages matching these exact strings. They're "special".
@@ -96,8 +99,14 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                         obj.get("url").asString,
                         obj.get("method").asString,
                         obj.get("statusCode").asInt)
+                "REQ_POST_UPLOAD" -> Http.REQ_POST_UPLOAD(created,
+                        lineNumber,
+                        obj.get("method").asString,
+                        obj.get("statusCode").asInt,
+                        obj.get("data").asString)
                 "WS_OPEN" -> WS_OPEN(created, lineNumber, obj.get("url").asString)
                 "WS_RECV" -> WS_RECV(created, lineNumber, obj.get("message").asString)
+                "WS_RECV_BEGIN_UPLOAD" -> WS_RECV_BEGIN_UPLOAD(created, lineNumber, obj.get("message").asString)
                 "WS_RECV_INIT" -> WS_RECV_INIT(created, lineNumber, obj.get("message").asString)
                 "WS_SEND" -> WS_SEND(created, lineNumber, obj.get("message").asString)
                 "WS_CLOSE" -> WS_CLOSE(created, lineNumber)
@@ -193,6 +202,39 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                 }
             }
         }
+
+        class REQ_POST_UPLOAD(override val created: Long,
+                              override val lineNumber: Int,
+                              override val method: String,
+                              override val statusCode: Int,
+                              // TODO Address inconsistency in use of "url" field between this and all the other kinds of REQ
+                              val data: String): Http(created, lineNumber, "dynamic", method, statusCode)  {
+            override fun handle(session: ShinySession, out: PrintWriter): Boolean {
+                return tryLog(session, out) {
+                    val url = session.tokenDictionary["UPLOAD_URL"] ?: error("Need UPLOAD_URL token to perform REQ_POST_UPLOAD")
+                    val cfg = RequestConfig.custom()
+                            .setCookieSpec(CookieSpecs.STANDARD)
+                            .build()
+                    val client = HttpClientBuilder
+                            .create()
+                            .setDefaultCookieStore(session.cookieStore)
+                            .setDefaultRequestConfig(cfg)
+                            .build()
+                    val post = HttpPost(url)
+                    post.entity = ByteArrayEntity(Base64.getDecoder().decode(data))
+                    client.execute(post).use { response ->
+                        val body = String(ByteArrayOutputStream().also {
+                            response.entity.content.copyTo(it)
+                        }.toByteArray())
+                        response.statusLine.statusCode.let {
+                            check(it == statusCode, {
+                                "Status $it received, expected $statusCode, Response body: $body, URL: $url"
+                            })
+                        }
+                    }
+                }
+            }
+        }
     }
 
     class WS_OPEN(override val created: Long,
@@ -275,6 +317,41 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
 
                 session.tokenDictionary["SESSION"] = sessionId
                 session.log.debug { "WS_RECV_INIT got SESSION: ${session.tokenDictionary["SESSION"]}" }
+            }
+        }
+    }
+
+    class WS_RECV_BEGIN_UPLOAD(override val created: Long,
+                               override val lineNumber: Int,
+                               val message: String) : Event(created, lineNumber) {
+        override fun handle(session: ShinySession, out: PrintWriter): Boolean {
+            return tryLog(session, out) {
+                // Waits indefinitely for a message to become available
+                val receivedStr = session.receiveQueue.take()
+                session.log.debug { "WS_RECV_BEGIN_UPLOAD received: $receivedStr" }
+
+                val jobId = parseMessage(receivedStr)
+                        ?.get("response")
+                        ?.asJsonObject
+                        ?.get("value")
+                        ?.asJsonObject
+                        ?.get("jobId")
+                        ?.asString
+                        ?: error("Expected jobId from WS_RECV_BEGIN_UPLOAD message")
+
+                val uploadUrl = parseMessage(receivedStr)
+                        ?.get("response")
+                        ?.asJsonObject
+                        ?.get("value")
+                        ?.asJsonObject
+                        ?.get("uploadUrl")
+                        ?.asString
+                        ?: error("Expected uploadUrl from WS_RECV_BEGIN_UPLOAD message")
+
+                session.tokenDictionary["UPLOAD_JOB_ID"] = jobId
+                session.tokenDictionary["UPLOAD_URL"] = uploadUrl
+
+                session.log.debug { "WS_RECV_BEGIN_UPLOAD got jobId and uploadUrl: $jobId, $uploadUrl" }
             }
         }
     }
