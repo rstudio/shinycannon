@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpGet
 import org.apache.http.client.methods.HttpPost
 import org.apache.http.entity.ByteArrayEntity
 import org.apache.http.impl.client.HttpClientBuilder
+import org.apache.http.util.EntityUtils
 import java.io.ByteArrayOutputStream
 import java.io.PrintWriter
 import java.time.Instant
@@ -138,12 +139,10 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                     .build()
             val get = HttpGet(url)
             client.execute(get).use { response ->
-                val baos = ByteArrayOutputStream()
-                response.entity.content.copyTo(baos)
-                val body = String(baos.toByteArray())
+                val body = EntityUtils.toString(response.entity)
                 val gotStatus = response.statusLine.statusCode
                 if (response.statusLine.statusCode != statusCode)
-                    error("Status $gotStatus received, expected $statusCode, Response body: $body, URL: $url")
+                    error("Status $gotStatus received, expected $statusCode, URL: $url, Response body: $body")
                 return body
             }
         }
@@ -223,12 +222,10 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                     val post = HttpPost(url)
                     post.entity = ByteArrayEntity(Base64.getDecoder().decode(data))
                     client.execute(post).use { response ->
-                        val body = String(ByteArrayOutputStream().also {
-                            response.entity.content.copyTo(it)
-                        }.toByteArray())
+                        val body = EntityUtils.toString(response.entity)
                         response.statusLine.statusCode.let {
                             check(it == statusCode, {
-                                "Status $it received, expected $statusCode, Response body: $body, URL: $url"
+                                "Status $it received, expected $statusCode, URL: $url, Response body: $body"
                             })
                         }
                     }
