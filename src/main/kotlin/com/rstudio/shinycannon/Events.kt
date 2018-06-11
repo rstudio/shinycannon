@@ -13,7 +13,6 @@ import org.apache.http.client.methods.HttpPost
 import org.apache.http.entity.ByteArrayEntity
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.util.EntityUtils
-import java.io.ByteArrayOutputStream
 import java.io.PrintWriter
 import java.time.Instant
 import java.util.*
@@ -121,6 +120,13 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                       open val method: String,
                       open val statusCode: Int) : Event(created, lineNumber) {
 
+        fun statusEquals(statusCode: Int): Boolean {
+            if ((this.statusCode == 200 || this.statusCode == 304) &&
+                    (statusCode == 200 || statusCode == 304))
+                return true;
+            return this.statusCode == statusCode
+        }
+
         fun get(session: ShinySession): String {
             val renderedUrl = session.replaceTokens(this.url)
             val url = URIBuilderTiny(session.httpUrl)
@@ -140,7 +146,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
             client.execute(get).use { response ->
                 val body = EntityUtils.toString(response.entity)
                 val gotStatus = response.statusLine.statusCode
-                if (response.statusLine.statusCode != statusCode)
+                if (!this.statusEquals(response.statusLine.statusCode))
                     error("Status $gotStatus received, expected $statusCode, URL: $url, Response body: $body")
                 return body
             }
