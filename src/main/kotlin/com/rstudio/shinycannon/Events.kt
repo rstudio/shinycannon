@@ -102,7 +102,6 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                         obj.get("statusCode").asInt)
                 "REQ_POST_UPLOAD" -> Http.REQ_POST_UPLOAD(created,
                         lineNumber,
-                        obj.get("method").asString,
                         obj.get("statusCode").asInt,
                         obj.get("data").asString)
                 "WS_OPEN" -> WS_OPEN(created, lineNumber, obj.get("url").asString)
@@ -204,13 +203,16 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
 
         class REQ_POST_UPLOAD(override val created: Long,
                               override val lineNumber: Int,
-                              override val method: String,
                               override val statusCode: Int,
                               // TODO Address inconsistency in use of "url" field between this and all the other kinds of REQ
-                              val data: String): Http(created, lineNumber, "dynamic", method, statusCode)  {
+                              val data: String): Http(created, lineNumber, "dynamic", "post", statusCode)  {
             override fun handle(session: ShinySession, out: PrintWriter): Boolean {
                 return tryLog(session, out) {
-                    val url = session.tokenDictionary["UPLOAD_URL"] ?: error("Need UPLOAD_URL token to perform REQ_POST_UPLOAD")
+                    val path = session.tokenDictionary["UPLOAD_URL"] ?: error("Need UPLOAD_URL token to perform REQ_POST_UPLOAD")
+                    val url = URIBuilderTiny(session.httpUrl)
+                            .appendRawPathsByString(path)
+                            .build()
+                            .toString()
                     val cfg = RequestConfig.custom()
                             .setCookieSpec(CookieSpecs.STANDARD)
                             .build()

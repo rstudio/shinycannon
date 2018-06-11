@@ -108,7 +108,7 @@ class ShinySession(val sessionId: Int,
 
     val wsUrl: String = URIBuilderTiny(httpUrl).setScheme("ws").build().toString()
 
-    val allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID", "SESSION")
+    val allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID", "SESSION", "UPLOAD_URL", "UPLOAD_JOB_ID")
     val tokenDictionary: HashMap<String, String> = hashMapOf(
             Pair("ROBUST_ID", randomHexString(18)),
             Pair("SOCKJSID", "000/${randomHexString(8)}")
