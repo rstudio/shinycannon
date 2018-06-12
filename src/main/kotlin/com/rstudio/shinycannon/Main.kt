@@ -100,7 +100,6 @@ fun parseMessage(msg: String): JsonObject? {
 
 // Represents a single "user" during the course of a LoadTest.
 class ShinySession(val sessionId: Int,
-                   val outputDir: File,
                    val httpUrl: String,
                    var script: ArrayList<Event>,
                    val log: KLogger,
@@ -259,7 +258,7 @@ class EnduranceTest(val args: Array<String>,
                 .toFile()
 
         fun startSession(num: Int, delay: Int = 0) {
-            val session = ShinySession(num, outputDir, httpUrl, log, logger, getCreds())
+            val session = ShinySession(num, httpUrl, log, logger, getCreds())
             val outputFile = makeOutputFile(num)
             outputFile.printWriter().use { out ->
                 out.println("# " + args.joinToString(" "))
