@@ -173,12 +173,11 @@ fun PrintWriter.printCsv(vararg columns: Any) {
     this.flush()
 }
 
-class Stats(numSessions: Int) {
-    enum class State { WAIT, RUN, DONE, FAIL }
+class Stats() {
+    enum class State { RUN, DONE, FAIL }
     enum class Transition { RUNNING, FAILED, DONE }
 
     val stats = ConcurrentHashMap(mapOf(
-            State.WAIT to numSessions,
             State.RUN to 0,
             State.DONE to 0,
             State.FAIL to 0
@@ -187,7 +186,6 @@ class Stats(numSessions: Int) {
     fun transition(t: Transition) {
         stats.replaceAll { k, v ->
             when (Pair(t, k)) {
-                Pair(Transition.RUNNING, State.WAIT) -> v - 1
                 Pair(Transition.RUNNING, State.RUN) -> v + 1
                 Pair(Transition.DONE, State.RUN) -> v - 1
                 Pair(Transition.DONE, State.DONE) -> v + 1
@@ -198,16 +196,9 @@ class Stats(numSessions: Int) {
         }
     }
 
-    fun isComplete(): Boolean {
-        return stats.entries
-                .filter { setOf(Stats.State.RUN, Stats.State.WAIT).contains(it.key) }
-                .sumBy { it.value }
-                .equals(0)
-    }
-
     override fun toString(): String {
         val copy = stats.toMap()
-        return "Waiting: ${copy[State.WAIT]}, Running: ${copy[State.RUN]}, Failed: ${copy[State.FAIL]}, Done: ${copy[State.DONE]}"
+        return "Running: ${copy[State.RUN]}, Failed: ${copy[State.FAIL]}, Done: ${copy[State.DONE]}"
     }
 }
 
@@ -236,7 +227,7 @@ class EnduranceTest(val args: Array<String>,
     val columnNames = arrayOf("thread_id", "event", "timestamp", "input_line_number", "comment")
 
     // Todo: stats should make more sense to endurance test
-    val stats = Stats(0)
+    val stats = Stats()
 
     fun run() {
         val logger = KotlinLogging.logger {}
