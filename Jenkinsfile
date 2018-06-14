@@ -29,6 +29,11 @@ try {
           make RELEASE.txt RELEASE_URLS.txt
           """
         }
+	stage('integration test') {
+          sh """
+          ./integration_test.sh
+          """
+	}
       }
       stage('s3 upload') {
       	sh """
