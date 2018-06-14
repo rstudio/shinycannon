@@ -40,7 +40,7 @@ new webdriver.Builder()
       .wait(webdriver.until.titleIs("Hello Shiny!"), 5000)
       .then(() => driver);
   })
-  .then(screenshot)
+  //.then(screenshot)
   .then(driver => {
     driver.quit();
   });
