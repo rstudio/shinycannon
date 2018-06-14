@@ -27,7 +27,7 @@ R -e "library(shinyloadtest);shinyloadtest::recordSession('http://localhost:5000
 sleep 1
 
 echo "Interacting with application to produce 01_hello.log"
-node integration_test/01_hello.js
+NODE_PATH=/usr/lib/node_modules node integration_test/01_hello.js
 
 sleep 1
 
