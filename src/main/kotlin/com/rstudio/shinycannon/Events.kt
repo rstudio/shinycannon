@@ -67,6 +67,8 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
             body()
             out.printCsv(session.sessionId, "${name()}_END", nowMs(), lineNumber)
         } catch (t: Throwable) {
+            // TODO Failure/closing: close the session instead of trying to continue
+            out.printCsv(session.sessionId, "FAIL", nowMs(), lineNumber)
             session.log.warn(t) { "${name()} failed (line: $lineNumber)" }
             return false
         }
@@ -114,6 +116,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
         }
     }
 
+    // TODO With REQ_GET and REQ_POST in the new recording format, all of this needs to change significantly.
     sealed class Http(override val created: Long,
                       override val lineNumber: Int,
                       open val url: String,
@@ -127,6 +130,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
             return this.statusCode == statusCode
         }
 
+        // TODO Candidate for becoming a method on ShinySession that takes url/status args
         fun get(session: ShinySession): String {
             val renderedUrl = session.replaceTokens(this.url)
             val url = URIBuilderTiny(session.httpUrl)
@@ -158,6 +162,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                   override val method: String,
                   override val statusCode: Int) : Http(created, lineNumber, url, method, statusCode) {
             override fun sleepBefore(session: ShinySession) =
+                    // TODO The calculation involving "created" changes with the latest shinyloadtest output (begin/end fields)
                     if (session.webSocket == null) 0 else (created - (session.lastEventCreated ?: created))
 
             override fun handle(session: ShinySession, out: PrintWriter): Boolean {
@@ -173,6 +178,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
             override fun handle(session: ShinySession, out: PrintWriter): Boolean {
                 return tryLog(session, out) {
                     val response = get(session)
+                    // session.get(this.url)
                     val re = """.*<base href="_w_([0-9a-z]+)/.*"""
                             .toRegex(options = setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL))
                     val match = re.matchEntire(response)
@@ -262,7 +268,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                                 }
                             }
                         }
-
+                        // TODO Failure/closing: end the session when the server closes the websocket
                         override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?) =
                                 session.log.debug { "%%% State $newState" }
                     })
@@ -285,6 +291,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
         override fun handle(session: ShinySession, out: PrintWriter): Boolean {
             return tryLog(session, out) {
                 // Waits indefinitely for a message to become available
+                // TODO Look into how to shut down. Consider a shutdown exception
                 val receivedStr = session.receiveQueue.take()
                 session.log.debug { "WS_RECV received: $receivedStr" }
                 // Because the messages in our log file are extra-escaped, we need to unescape once.
@@ -295,6 +302,7 @@ sealed class Event(open val created: Long, open val lineNumber: Int) {
                         "Expected string $expectingStr but got $receivedStr"
                     }
                 } else {
+                    // TODO Do full structural comparison instead of just comparing top-level keys
                     val receivedObj = parseMessage(receivedStr)
                     check(expectingObj.keySet() == receivedObj?.keySet()) {
                         "Objects don't have same keys: $expectingObj, $receivedObj"

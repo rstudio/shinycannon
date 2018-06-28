@@ -123,6 +123,7 @@ class ShinySession(val sessionId: Int,
 
     fun replaceTokens(s: String) = replaceTokens(s, allowedTokens, tokenDictionary)
 
+    // TODO Logging in might be optional for some apps, so it would be better to always attempt to log in if credentials were provided.
     private fun maybeLogin() {
         credentials?.let { (username, password) ->
             if (isProtected(httpUrl)) {
@@ -131,7 +132,7 @@ class ShinySession(val sessionId: Int,
                 }
             } else {
                 log.info {
-                    "SHINYCANNON_USER and SHINYCANNON_PASS are set, but the target app is not protected."
+                    "SHINYCANNON_USER and SHINYCANNON_PASS are set, but the target app does not require authentication."
                 }
             }
         }
@@ -234,6 +235,8 @@ class EnduranceTest(val args: Array<String>,
         val log = readEventLog(logPath)
         check(log.size > 0) { "input log must not be empty" }
         check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
+
+        // TODO This isn't necessary anymore since session loop automatically
         val warmupTime = numSessions*warmupInterval
         check(eventlogDuration(log) > warmupTime) {
             "For endurance tests, log must be longer than total warmup time (warmupInterval * numSessions)"
@@ -241,7 +244,8 @@ class EnduranceTest(val args: Array<String>,
 
         val keepWorking = AtomicBoolean(true)
         val keepShowingStats = AtomicBoolean(true)
-        val sessionNum = AtomicInteger(1)
+        // TODO Ensure analysis code tolerates 0 in session log name
+        val sessionNum = AtomicInteger(0)
 
         fun makeOutputFile(num: Int) = outputDir
                 .toPath()
@@ -274,12 +278,11 @@ class EnduranceTest(val args: Array<String>,
         // Warmup and maintenance
         for (i in 1..numSessions) {
             thread {
-                val num = sessionNum.getAndIncrement()
-                // First session starts after some delay
-                Thread.sleep(num*warmupInterval.toLong())
+                // Continue after some (possibly-zero) millisecond delay
+                Thread.sleep((i-1)*warmupInterval.toLong())
                 info("Worker thread $i warming up")
                 warmupCountdown.countDown()
-                startSession(num)
+                startSession(sessionNum.getAndIncrement())
                 while (keepWorking.get()) {
                     // Subsequent sessions start immediately
                     info("Worker thread $i running again")
@@ -292,12 +295,14 @@ class EnduranceTest(val args: Array<String>,
 
         info("Waiting for warmup to complete")
         warmupCountdown.await()
+        // TODO minutes should be able to be fractional
         info("Maintaining for $loadedDurationMinutes minutes")
         Thread.sleep(loadedDurationMinutes*60*1000.toLong())
         info("Stopped maintaining, waiting for workers to stop")
         keepWorking.set(false)
         finishedCountdown.await()
         keepShowingStats.set(false)
+        // TODO make the stats thing update in place, and look cool too maybe?
     }
 
 }
@@ -331,6 +336,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         val output = File(outputDir)
         if (output.exists()) {
             if (overwriteOutput) {
+                // TODO Ensure the existing directory we're about to delete is conceivably an output directory.
                 output.deleteRecursively()
             } else {
                 error("Output dir $outputDir already exists and --overwrite-output not set")
@@ -340,6 +346,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         output.mkdirs()
         output.toPath().resolve("sessions").toFile().mkdir()
 
+        // TODO Default to warn, and don't make a special detail.log: print thees messages to the console.
         val fa = FileAppender()
         fa.layout = PatternLayout("%5p [%t] %d (%F:%L) - %m%n")
         fa.threshold = logLevel
