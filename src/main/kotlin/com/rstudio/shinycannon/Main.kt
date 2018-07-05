@@ -100,6 +100,8 @@ fun parseMessage(msg: String): JsonObject? {
 
 // Represents a single "user" during the course of a LoadTest.
 class ShinySession(val sessionId: Int,
+                   val workerId: Int,
+                   val iterationId: Int,
                    val httpUrl: String,
                    val logPath: String,
                    var script: ArrayList<Event>,
@@ -151,19 +153,19 @@ class ShinySession(val sessionId: Int,
             val currentEvent = script[i]
             val sleepFor = currentEvent.sleepBefore(this)
             if (sleepFor > 0) {
-                out.printCsv(sessionId, "PLAYBACK_SLEEPBEFORE_START", nowMs(), currentEvent.lineNumber)
+                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_SLEEPBEFORE_START", nowMs(), currentEvent.lineNumber)
                 Thread.sleep(sleepFor)
-                out.printCsv(sessionId, "PLAYBACK_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber)
+                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber)
             }
             if (!currentEvent.handle(this, out)) {
                 stats.transition(Stats.Transition.FAILED)
-                out.printCsv(sessionId, "PLAYBACK_FAIL", nowMs(), currentEvent.lineNumber)
+                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), currentEvent.lineNumber)
                 return
             }
             lastEventEnded = currentEvent.begin
         }
         stats.transition(Stats.Transition.DONE)
-        out.printCsv(sessionId, "PLAYBACK_DONE", nowMs())
+        out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_DONE", nowMs())
     }
 }
 
@@ -225,7 +227,7 @@ class EnduranceTest(val args: Array<String>,
                     val numSessions: Int,
                     val outputDir: File) {
 
-    val columnNames = arrayOf("thread_id", "event", "timestamp", "input_line_number", "comment")
+    val columnNames = arrayOf("session_id", "worker_id", "iteration", "event", "timestamp", "input_line_number", "comment")
 
     // Todo: stats should make more sense to endurance test
     val stats = Stats()
@@ -247,18 +249,18 @@ class EnduranceTest(val args: Array<String>,
         // TODO Ensure analysis code tolerates 0 in session log name
         val sessionNum = AtomicInteger(0)
 
-        fun makeOutputFile(num: Int) = outputDir
+        fun makeOutputFile(sessionId: Int, workerId: Int, iterationId: Int) = outputDir
                 .toPath()
-                .resolve(Paths.get("sessions", "$num.log"))
+                .resolve(Paths.get("sessions", "${sessionId}_${workerId}_${iterationId}.log"))
                 .toFile()
 
-        fun startSession(num: Int, delay: Int = 0) {
-            val session = ShinySession(num, httpUrl, logPath, log, logger, getCreds())
-            val outputFile = makeOutputFile(num)
+        fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
+            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, logPath, log, logger, getCreds())
+            val outputFile = makeOutputFile(sessionId, workerId, iterationId)
             outputFile.printWriter().use { out ->
                 out.println("# " + args.joinToString(" "))
                 out.printCsv(*columnNames)
-                out.printCsv(num, "PLAYER_SESSION_CREATE", nowMs())
+                out.printCsv(sessionId, workerId, iterationId, "PLAYER_SESSION_CREATE", nowMs())
                 session.run(delay, out, stats)
             }
         }
@@ -276,19 +278,20 @@ class EnduranceTest(val args: Array<String>,
         val finishedCountdown = CountDownLatch(numSessions)
 
         // Warmup and maintenance
-        for (i in 1..numSessions) {
+        for (worker in 0..numSessions-1) {
             thread {
+                var iteration = 0
                 // Continue after some (possibly-zero) millisecond delay
-                Thread.sleep((i-1)*warmupInterval.toLong())
-                info("Worker thread $i warming up")
+                Thread.sleep((worker-1)*warmupInterval.toLong())
+                info("Worker $worker warming up")
                 warmupCountdown.countDown()
-                startSession(sessionNum.getAndIncrement())
+                startSession(sessionNum.getAndIncrement(), worker, iteration++)
                 while (keepWorking.get()) {
                     // Subsequent sessions start immediately
-                    info("Worker thread $i running again")
-                    startSession(sessionNum.getAndIncrement())
+                    info("Worker $worker running again")
+                    startSession(sessionNum.getAndIncrement(), worker, iteration++)
                 }
-                info("Worker thread $i stopped")
+                info("Worker $worker stopped")
                 finishedCountdown.countDown()
             }
         }

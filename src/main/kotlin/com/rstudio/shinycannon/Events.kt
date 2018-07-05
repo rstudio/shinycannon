@@ -66,13 +66,13 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
     fun name() = this::class.java.typeName.split("$").last()
 
     fun tryLog(session: ShinySession, out: PrintWriter, body: () -> Unit): Boolean {
-        out.printCsv(session.sessionId, "${name()}_START", nowMs(), lineNumber)
+        out.printCsv(session.sessionId, session.workerId, session.iterationId, "${name()}_START", nowMs(), lineNumber)
         try {
             body()
-            out.printCsv(session.sessionId, "${name()}_END", nowMs(), lineNumber)
+            out.printCsv(session.sessionId, session.workerId, session.iterationId, "${name()}_END", nowMs(), lineNumber)
         } catch (t: Throwable) {
             // TODO Failure/closing: close the session instead of trying to continue
-            out.printCsv(session.sessionId, "FAIL", nowMs(), lineNumber)
+            out.printCsv(session.sessionId, session.workerId, session.iterationId, "FAIL", nowMs(), lineNumber)
             session.log.warn(t) { "${name()} failed (line: $lineNumber)" }
             return false
         }
