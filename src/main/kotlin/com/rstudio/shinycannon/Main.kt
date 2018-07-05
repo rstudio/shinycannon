@@ -41,7 +41,7 @@ fun readEventLog(logPath: String): ArrayList<Event> {
             }
 }
 
-fun eventlogDuration(events: ArrayList<Event>) = events.last().created - events.first().created
+fun eventlogDuration(events: ArrayList<Event>) = events.last().begin - events.first().begin
 
 fun randomHexString(numchars: Int): String {
     val r = SecureRandom()
@@ -101,6 +101,7 @@ fun parseMessage(msg: String): JsonObject? {
 // Represents a single "user" during the course of a LoadTest.
 class ShinySession(val sessionId: Int,
                    val httpUrl: String,
+                   val logPath: String,
                    var script: ArrayList<Event>,
                    val log: KLogger,
                    val credentials: Pair<String, String>?) {
@@ -117,7 +118,7 @@ class ShinySession(val sessionId: Int,
     val receiveQueueSize = 5
     val receiveQueue: LinkedBlockingQueue<String> = LinkedBlockingQueue(receiveQueueSize)
 
-    var lastEventCreated: Long? = null
+    var lastEventEnded: Long? = null
 
     val cookieStore = BasicCookieStore()
 
@@ -140,7 +141,6 @@ class ShinySession(val sessionId: Int,
 
     fun run(startDelayMs: Int = 0, out: PrintWriter, stats: Stats) {
         maybeLogin()
-        lastEventCreated = nowMs()
         if (startDelayMs > 0) {
             out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_START", nowMs())
             Thread.sleep(startDelayMs.toLong())
@@ -160,7 +160,7 @@ class ShinySession(val sessionId: Int,
                 out.printCsv(sessionId, "PLAYBACK_FAIL", nowMs(), currentEvent.lineNumber)
                 return
             }
-            lastEventCreated = currentEvent.created
+            lastEventEnded = currentEvent.begin
         }
         stats.transition(Stats.Transition.DONE)
         out.printCsv(sessionId, "PLAYBACK_DONE", nowMs())
@@ -253,7 +253,7 @@ class EnduranceTest(val args: Array<String>,
                 .toFile()
 
         fun startSession(num: Int, delay: Int = 0) {
-            val session = ShinySession(num, httpUrl, log, logger, getCreds())
+            val session = ShinySession(num, httpUrl, logPath, log, logger, getCreds())
             val outputFile = makeOutputFile(num)
             outputFile.printWriter().use { out ->
                 out.println("# " + args.joinToString(" "))
