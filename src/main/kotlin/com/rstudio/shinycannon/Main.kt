@@ -238,15 +238,8 @@ class EnduranceTest(val args: Array<String>,
         check(log.size > 0) { "input log must not be empty" }
         check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
 
-        // TODO This isn't necessary anymore since session loop automatically
-        val warmupTime = numSessions*warmupInterval
-        check(eventlogDuration(log) > warmupTime) {
-            "For endurance tests, log must be longer than total warmup time (warmupInterval * numSessions)"
-        }
-
         val keepWorking = AtomicBoolean(true)
         val keepShowingStats = AtomicBoolean(true)
-        // TODO Ensure analysis code tolerates 0 in session log name
         val sessionNum = AtomicInteger(0)
 
         fun makeOutputFile(sessionId: Int, workerId: Int, iterationId: Int) = outputDir
@@ -277,12 +270,11 @@ class EnduranceTest(val args: Array<String>,
         val warmupCountdown = CountDownLatch(numSessions)
         val finishedCountdown = CountDownLatch(numSessions)
 
-        // Warmup and maintenance
-        for (worker in 0..numSessions-1) {
+        for (worker in 0 until numSessions) {
             thread {
                 var iteration = 0
                 // Continue after some (possibly-zero) millisecond delay
-                Thread.sleep((worker-1)*warmupInterval.toLong())
+                Thread.sleep(worker*warmupInterval.toLong())
                 info("Worker $worker warming up")
                 warmupCountdown.countDown()
                 startSession(sessionNum.getAndIncrement(), worker, iteration++)
