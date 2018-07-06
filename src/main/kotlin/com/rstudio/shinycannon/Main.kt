@@ -144,28 +144,28 @@ class ShinySession(val sessionId: Int,
     fun run(startDelayMs: Int = 0, out: PrintWriter, stats: Stats) {
         maybeLogin()
         if (startDelayMs > 0) {
-            out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_START", nowMs())
+            out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_START", nowMs(), 0, "")
             Thread.sleep(startDelayMs.toLong())
-            out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_END", nowMs())
+            out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_END", nowMs(), 0, "")
         }
         stats.transition(Stats.Transition.RUNNING)
         for (i in 0 until script.size) {
             val currentEvent = script[i]
             val sleepFor = currentEvent.sleepBefore(this)
             if (sleepFor > 0) {
-                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_SLEEPBEFORE_START", nowMs(), currentEvent.lineNumber)
+                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_SLEEPBEFORE_START", nowMs(), currentEvent.lineNumber, "")
                 Thread.sleep(sleepFor)
-                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber)
+                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber, "")
             }
             if (!currentEvent.handle(this, out)) {
                 stats.transition(Stats.Transition.FAILED)
-                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), currentEvent.lineNumber)
+                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), currentEvent.lineNumber, "")
                 return
             }
             lastEventEnded = currentEvent.begin
         }
         stats.transition(Stats.Transition.DONE)
-        out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_DONE", nowMs())
+        out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_DONE", nowMs(), 0, "")
     }
 }
 
@@ -253,7 +253,7 @@ class EnduranceTest(val args: Array<String>,
             outputFile.printWriter().use { out ->
                 out.println("# " + args.joinToString(" "))
                 out.printCsv(*columnNames)
-                out.printCsv(sessionId, workerId, iterationId, "PLAYER_SESSION_CREATE", nowMs())
+                out.printCsv(sessionId, workerId, iterationId, "PLAYER_SESSION_CREATE", nowMs(), 0, "")
                 session.run(delay, out, stats)
             }
         }
