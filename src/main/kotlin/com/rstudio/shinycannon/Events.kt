@@ -80,23 +80,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
     }
 
     companion object {
-        // TODO Temporary kludge because the pattern at https://github.com/rstudio/shinyloadtest/blob/397a7477bd9b67b6cc680cedef8a53589ce7e1a6/R/shiny-recorder.R#L36
-        // doesn't produce a valid ISO datetimestamp.
-        // Should be: "%Y-%m-%dT%H:%M:%%OS3Z"
-        // Once that's fixed, we can once again just do: Instant.parse(str).toEpochMilli()
-        private fun parseInstant(str: String) = try {
-            Instant.parse(str).toEpochMilli()
-        } catch (e: DateTimeParseException) {
-            DateTimeFormatterBuilder()
-                    .appendPattern("yyyy-MM-dd")
-                    .appendLiteral("T")
-                    .appendPattern("HH:mmss.nnn")
-                    .appendLiteral("Z")
-                    .toFormatter()
-                    .withZone(ZoneId.of(("UTC")))
-                    .parse(str, Instant::from)
-                    .toEpochMilli()
-        }
+        private fun parseInstant(str: String) = Instant.parse(str).toEpochMilli()
 
         fun fromLine(lineNumber: Int, line: String): Event {
             val obj = JsonParser().parse(line).asJsonObject
@@ -123,7 +107,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                         lineNumber,
                         obj.get("status").asInt,
                         obj.get("url").asString,
-                        obj.get("datafile").asString)
+                        if (obj.has("datafile")) obj.get("datafile").asString else null)
                 "WS_OPEN" -> WS_OPEN(begin, lineNumber, obj.get("url").asString)
                 "WS_RECV" -> WS_RECV(begin, lineNumber, obj.get("message").asString)
                 "WS_RECV_BEGIN_UPLOAD" -> WS_RECV_BEGIN_UPLOAD(begin, lineNumber, obj.get("message").asString)
@@ -229,7 +213,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                        override val lineNumber: Int,
                        override val status: Int,
                        override val url: String,
-                       val datafile: String): Http(begin, lineNumber, url, status) {
+                       val datafile: String?): Http(begin, lineNumber, url, status) {
             override fun handle(session: ShinySession, out: PrintWriter): Boolean {
                 return tryLog(session, out) {
                     val url = URIBuilderTiny(session.httpUrl)
@@ -246,17 +230,13 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                             .build()
                     val post = HttpPost(url)
 
-                    val parentDir = Paths.get(session.logPath).parent ?: FileSystems.getDefault().getPath(".")
+                    if (datafile != null) {
+                        val parentDir = Paths.get(session.logPath).parent ?: FileSystems.getDefault().getPath(".")
+                        val file = parentDir.resolve(datafile).toFile()
+                        assert(file.exists() && file.isFile)
+                        post.entity = FileEntity(file)
+                    }
 
-                    val file = parentDir
-                            // TODO this is a kludge to get around the fact that uploaded file names are stored with absolute paths.
-                            // Only the base name should be stored and it should be assumed the path to the file is the same as the
-                            // path to the recording. Once that's fixed we should use .resolve(datafile) here instead.
-                            .relativize(Paths.get(datafile).asSequence().last())
-                            .toFile()
-
-                    assert(file.exists() && file.isFile)
-                    post.entity = FileEntity(file)
                     client.execute(post).use { response ->
                         val body = EntityUtils.toString(response.entity)
                         response.statusLine.statusCode.let {
