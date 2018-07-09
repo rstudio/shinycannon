@@ -216,7 +216,7 @@ fun info(msg: String) {
     println("${Instant.now().toString()} - $msg")
 }
 
-class EnduranceTest(val args: Array<String>,
+class EnduranceTest(val args: Sequence<String>,
                     val httpUrl: String,
                     val logPath: String,
                     // Amount of time to wait between starting sessions until target reached
@@ -359,8 +359,12 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
             }
         }
 
+        // Copy the recording file to the output directory so runs are easily reproducible.
+        File(logPath).copyTo(output.toPath().resolve("recording.log").toFile())
+
         val loadTest = EnduranceTest(
-                args,
+                // Drop the original logpath from the arglist
+                args.asSequence().drop(1),
                 appUrl,
                 logPath,
                 numSessions = sessions,
