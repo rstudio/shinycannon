@@ -4,16 +4,51 @@ shinycannon(1) -- load generator for Shiny applications
 ## SYNOPSIS
 
 `shinycannon` `--help`<br>
-`shinycannon` <file> --app-url <url>...
+`shinycannon` <file> <url> ...
 
 ## DESCRIPTION
 
 **shinycannon** generates load on Shiny applications by simulating one or more 
-users. The basis for each simulation is a log <file> created using 
-the [shinyRecorder](https://github.com/rstudio/shinyRecorder) R package.
+users. The basis for each simulation is a recording <file> created using 
+the [shinyloadtest](https://github.com/rstudio/shinyloadtest) R package.
 
-`shinycannon` produces files with timing data that can be used to analyze the 
-performance of the target application underload.
+The number of users simulated during a run -- or "sessions" -- is given by the
+number of workers specified and the amount of time each worker should keep
+running: the "loaded duration", in minutes, which defaults to 0.
+
+If loaded duration is unspecified, it defaults to 0, and each worker will run
+a single session -- simulating a single user -- and then shut down.
+
+## OUTPUT
+
+`shinycannon` produces files in a directory with timing data that can be used to
+ analyze the performance of the target application underload.
+
+By default, the output directory is generated using a timestamp. Alternatively,
+it can be named with the `--output-dir` option.
+
+A run with `--workers 2` and `--loaded-duration-minutes 0` might look like the
+following:
+
+```
+.
+├── detail.log
+├── recording.log
+└── workers
+    ├── 0_0_0.csv
+    └── 1_1_0.csv
+```
+
+* `detail.log` contains informational or error messages, depending on the value of
+  `--log-level`. It may be empty.
+* `recording.log` is a copy of the recording argument passed to shinycannon.
+* `workers` is a directory of CSV files. Each CSV file is a log of the activities
+  of a single session. The names of these files are given by `x_y_z.csv`, where
+  `x` is the global session counter, `y` is the worker id, and `z` is the iteration
+  of that session with respect to the worker that ran it. `x`, `y`, and `z` are
+  all zero-based counters. So, for example, `1_1_0.csv` is the log for the second
+  session to start across all workers and was executed by the second worker. It
+  was the first session to be run by that worker.
 
 ## OPTIONS
 
@@ -23,8 +58,11 @@ performance of the target application underload.
   * `--app-url` <url>:
     URL of the target Shiny application
 
-  * `--sessions` <num>:
-    Number of sessions to simulate, default 1
+  * `--workers` <num>:
+    Number of workers to simulate. Default is 1.
+
+  * `--loaded-duration-minutes` <num>:
+    Number of minutes each worker should continue simulating sessions after simulating its first session.
 
   * `--output-dir` <directory>:
     Path to directory to store session logs in for this test run
@@ -33,7 +71,7 @@ performance of the target application underload.
     Whether or not to delete the output directory before starting, if it exists already
 
   * `--start-interval` <milliseconds>:
-    Number of milliseconds to wait between starting sessions
+    Number of milliseconds to wait between starting workers.
 
   * `--log-level` <level>:
     Log level (default: warn, available include: debug, info, warn, error)

@@ -18,6 +18,7 @@ import org.apache.log4j.PatternLayout
 import java.io.File
 import java.io.PrintWriter
 import java.lang.Exception
+import java.math.BigDecimal
 import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.Instant
@@ -41,7 +42,7 @@ fun readEventLog(logPath: String): ArrayList<Event> {
             }
 }
 
-fun eventlogDuration(events: ArrayList<Event>) = events.last().created - events.first().created
+fun eventlogDuration(events: ArrayList<Event>) = events.last().begin - events.first().begin
 
 fun randomHexString(numchars: Int): String {
     val r = SecureRandom()
@@ -100,7 +101,10 @@ fun parseMessage(msg: String): JsonObject? {
 
 // Represents a single "user" during the course of a LoadTest.
 class ShinySession(val sessionId: Int,
+                   val workerId: Int,
+                   val iterationId: Int,
                    val httpUrl: String,
+                   val logPath: String,
                    var script: ArrayList<Event>,
                    val log: KLogger,
                    val credentials: Pair<String, String>?) {
@@ -117,7 +121,7 @@ class ShinySession(val sessionId: Int,
     val receiveQueueSize = 5
     val receiveQueue: LinkedBlockingQueue<String> = LinkedBlockingQueue(receiveQueueSize)
 
-    var lastEventCreated: Long? = null
+    var lastEventEnded: Long? = null
 
     val cookieStore = BasicCookieStore()
 
@@ -140,30 +144,29 @@ class ShinySession(val sessionId: Int,
 
     fun run(startDelayMs: Int = 0, out: PrintWriter, stats: Stats) {
         maybeLogin()
-        lastEventCreated = nowMs()
         if (startDelayMs > 0) {
-            out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_START", nowMs())
+            out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_START", nowMs(), 0, "")
             Thread.sleep(startDelayMs.toLong())
-            out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_END", nowMs())
+            out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_END", nowMs(), 0, "")
         }
         stats.transition(Stats.Transition.RUNNING)
         for (i in 0 until script.size) {
             val currentEvent = script[i]
             val sleepFor = currentEvent.sleepBefore(this)
             if (sleepFor > 0) {
-                out.printCsv(sessionId, "PLAYBACK_SLEEPBEFORE_START", nowMs(), currentEvent.lineNumber)
+                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_SLEEPBEFORE_START", nowMs(), currentEvent.lineNumber, "")
                 Thread.sleep(sleepFor)
-                out.printCsv(sessionId, "PLAYBACK_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber)
+                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber, "")
             }
             if (!currentEvent.handle(this, out)) {
                 stats.transition(Stats.Transition.FAILED)
-                out.printCsv(sessionId, "PLAYBACK_FAIL", nowMs(), currentEvent.lineNumber)
+                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), currentEvent.lineNumber, "")
                 return
             }
-            lastEventCreated = currentEvent.created
+            lastEventEnded = currentEvent.begin
         }
         stats.transition(Stats.Transition.DONE)
-        out.printCsv(sessionId, "PLAYBACK_DONE", nowMs())
+        out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_DONE", nowMs(), 0, "")
     }
 }
 
@@ -214,18 +217,18 @@ fun info(msg: String) {
     println("${Instant.now().toString()} - $msg")
 }
 
-class EnduranceTest(val args: Array<String>,
+class EnduranceTest(val args: Sequence<String>,
                     val httpUrl: String,
                     val logPath: String,
-                    // Amount of time to wait between starting sessions until target reached
+                    // Amount of time to wait between starting workers until target reached
                     val warmupInterval: Int = 0,
-                    // Time to maintain target number of sessions
-                    val loadedDurationMinutes: Int,
-                    // Number of sessions to maintain
-                    val numSessions: Int,
+                    // Time to maintain target number of workers
+                    val loadedDurationMinutes: BigDecimal,
+                    // Number of workers to maintain
+                    val numWorkers: Int,
                     val outputDir: File) {
 
-    val columnNames = arrayOf("thread_id", "event", "timestamp", "input_line_number", "comment")
+    val columnNames = arrayOf("session_id", "worker_id", "iteration", "event", "timestamp", "input_line_number", "comment")
 
     // Todo: stats should make more sense to endurance test
     val stats = Stats()
@@ -236,29 +239,22 @@ class EnduranceTest(val args: Array<String>,
         check(log.size > 0) { "input log must not be empty" }
         check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
 
-        // TODO This isn't necessary anymore since session loop automatically
-        val warmupTime = numSessions*warmupInterval
-        check(eventlogDuration(log) > warmupTime) {
-            "For endurance tests, log must be longer than total warmup time (warmupInterval * numSessions)"
-        }
-
         val keepWorking = AtomicBoolean(true)
         val keepShowingStats = AtomicBoolean(true)
-        // TODO Ensure analysis code tolerates 0 in session log name
         val sessionNum = AtomicInteger(0)
 
-        fun makeOutputFile(num: Int) = outputDir
+        fun makeOutputFile(sessionId: Int, workerId: Int, iterationId: Int) = outputDir
                 .toPath()
-                .resolve(Paths.get("sessions", "$num.log"))
+                .resolve(Paths.get("workers", "${sessionId}_${workerId}_${iterationId}.csv"))
                 .toFile()
 
-        fun startSession(num: Int, delay: Int = 0) {
-            val session = ShinySession(num, httpUrl, log, logger, getCreds())
-            val outputFile = makeOutputFile(num)
+        fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
+            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, logPath, log, logger, getCreds())
+            val outputFile = makeOutputFile(sessionId, workerId, iterationId)
             outputFile.printWriter().use { out ->
                 out.println("# " + args.joinToString(" "))
                 out.printCsv(*columnNames)
-                out.printCsv(num, "PLAYER_SESSION_CREATE", nowMs())
+                out.printCsv(sessionId, workerId, iterationId, "PLAYER_SESSION_CREATE", nowMs(), 0, "")
                 session.run(delay, out, stats)
             }
         }
@@ -272,23 +268,23 @@ class EnduranceTest(val args: Array<String>,
             println("${Instant.now().toString()} - $stats")
         }
 
-        val warmupCountdown = CountDownLatch(numSessions)
-        val finishedCountdown = CountDownLatch(numSessions)
+        val warmupCountdown = CountDownLatch(numWorkers)
+        val finishedCountdown = CountDownLatch(numWorkers)
 
-        // Warmup and maintenance
-        for (i in 1..numSessions) {
+        for (worker in 0 until numWorkers) {
             thread {
+                var iteration = 0
                 // Continue after some (possibly-zero) millisecond delay
-                Thread.sleep((i-1)*warmupInterval.toLong())
-                info("Worker thread $i warming up")
+                Thread.sleep(worker*warmupInterval.toLong())
+                info("Worker $worker warming up")
                 warmupCountdown.countDown()
-                startSession(sessionNum.getAndIncrement())
+                startSession(sessionNum.getAndIncrement(), worker, iteration++)
                 while (keepWorking.get()) {
-                    // Subsequent sessions start immediately
-                    info("Worker thread $i running again")
-                    startSession(sessionNum.getAndIncrement())
+                    // Subsequent workers start immediately
+                    info("Worker $worker running again")
+                    startSession(sessionNum.getAndIncrement(), worker, iteration++)
                 }
-                info("Worker thread $i stopped")
+                info("Worker $worker stopped")
                 finishedCountdown.countDown()
             }
         }
@@ -296,8 +292,8 @@ class EnduranceTest(val args: Array<String>,
         info("Waiting for warmup to complete")
         warmupCountdown.await()
         // TODO minutes should be able to be fractional
-        info("Maintaining for $loadedDurationMinutes minutes")
-        Thread.sleep(loadedDurationMinutes*60*1000.toLong())
+        info("Maintaining for $loadedDurationMinutes minutes (${loadedDurationMinutes*BigDecimal(60000)} ms)")
+        Thread.sleep((loadedDurationMinutes*BigDecimal(60000)).toLong())
         info("Stopped maintaining, waiting for workers to stop")
         keepWorking.set(false)
         finishedCountdown.await()
@@ -308,16 +304,16 @@ class EnduranceTest(val args: Array<String>,
 }
 
 class Args(parser: ArgParser) {
-    val logPath by parser.positional("Path to Shiny interaction log file")
+    val recordingPath by parser.positional("Path to recording file")
     val appUrl by parser.positional("URL of the Shiny application to interact with")
-    val sessions by parser.storing("Number of sessions to simulate. Default is 1.") { toInt() }
+    val workers by parser.storing("Number of workers to simulate. Default is 1.") { toInt() }
             .default(1)
-    val loadedDurationMinutes by parser.storing("Number of minutes to maintain load after all sessions have started.") { toInt() }
-            .default(0)
+    val loadedDurationMinutes by parser.storing("Number of minutes to continue simulating sessions in each worker after all workers have completed one session. Can be fractional. Default is 0.") { toBigDecimal() }
+            .default(BigDecimal.ZERO)
     val outputDir by parser.storing("Path to directory to store session logs in for this test run")
             .default("test-logs-${Instant.now()}")
     val overwriteOutput by parser.flagging("Whether or not to delete the output directory before starting, if it exists already")
-    val startInterval by parser.storing("Number of milliseconds to wait between starting sessions") { toInt() }
+    val startInterval by parser.storing("Number of milliseconds to wait between starting workers") { toInt() }
             .default(0)
     val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
         Level.toLevel(this.toUpperCase(), Level.WARN) as Level
@@ -336,7 +332,12 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         val output = File(outputDir)
         if (output.exists()) {
             if (overwriteOutput) {
-                // TODO Ensure the existing directory we're about to delete is conceivably an output directory.
+                // Ensure the existing directory we're about to delete is conceivably an output directory.
+                check(listOf("recording.log", "detail.log", "sessions").map {
+                    output.toPath().resolve(it).toFile()
+                }.all { it.exists() }, {
+                    "Directory doesn't look like an output directory, so not overwriting. Please delete it manually."
+                })
                 output.deleteRecursively()
             } else {
                 error("Output dir $outputDir already exists and --overwrite-output not set")
@@ -344,7 +345,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         }
 
         output.mkdirs()
-        output.toPath().resolve("sessions").toFile().mkdir()
+        output.toPath().resolve("workers").toFile().mkdir()
 
         // TODO Default to warn, and don't make a special detail.log: print thees messages to the console.
         val fa = FileAppender()
@@ -364,11 +365,15 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
             }
         }
 
+        // Copy the recording file to the output directory so runs are easily reproducible.
+        File(recordingPath).copyTo(output.toPath().resolve("recording.log").toFile())
+
         val loadTest = EnduranceTest(
-                args,
+                // Drop the original logpath from the arglist
+                args.asSequence().drop(1),
                 appUrl,
-                logPath,
-                numSessions = sessions,
+                recordingPath,
+                numWorkers = workers,
                 outputDir = output,
                 warmupInterval = startInterval,
                 loadedDurationMinutes = loadedDurationMinutes
