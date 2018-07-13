@@ -73,10 +73,9 @@ fun servedBy(resp: HttpResponse): AppServer {
     return when {
     // TODO figure out why SSP-XSRF not served by 1.5.8.960
         headers["X-Powered-By"] == "Express" -> AppServer.SSP
-    // SSP doesn't report this as of this writing, but probably will soon
-    // https://github.com/rstudio/shiny-server/pull/361
         headers["X-Powered-By"] == "Shiny Server Pro" -> AppServer.SSP
         headers.containsKey("rscid") -> AppServer.RSC
+        headers["Server"]?.startsWith("RStudio Connect") ?: false -> AppServer.RSC
         else -> AppServer.UNKNOWN
     }
 }
@@ -96,6 +95,7 @@ fun getInputs(resp: HttpResponse, server: AppServer): Map<String, String> {
 }
 
 fun loginUrlFor(appUrl: String, server: AppServer): String {
+    println("%%%%%%%%% In here baby")
     return when (server) {
         AppServer.RSC -> URL(appUrl).let { url ->
             URIBuilderTiny()
@@ -130,6 +130,10 @@ class ProtectedApp(val appUrl: String) {
     val loginUrl = loginUrlFor(appUrl, server)
 
     fun postLogin(username: String, password: String): Cookie {
+        when (server) {
+            AppServer.RSC -> println("Server is RSC")
+            else -> println("Server is unknown")
+        }
         val cookies = resp.cookies.shallowCopy()
         val cfg = RequestConfig.custom()
                 .setCookieSpec(CookieSpecs.STANDARD)
@@ -148,6 +152,7 @@ class ProtectedApp(val appUrl: String) {
             BasicNameValuePair(entry.key, entry.value)
         }.let { pairs -> UrlEncodedFormEntity(pairs) }
         client.execute(post).use { _ ->
+            println(cookies)
             return when (server) {
                 AppServer.SSP -> cookies.cookies.firstOrNull { it.name == "session_state" }
                 AppServer.RSC -> cookies.cookies.firstOrNull { it.name == "rsconnect" }
