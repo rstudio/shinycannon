@@ -245,7 +245,7 @@ class EnduranceTest(val args: Sequence<String>,
 
         fun makeOutputFile(sessionId: Int, workerId: Int, iterationId: Int) = outputDir
                 .toPath()
-                .resolve(Paths.get("workers", "${sessionId}_${workerId}_${iterationId}.csv"))
+                .resolve(Paths.get("sessions", "${sessionId}_${workerId}_${iterationId}.csv"))
                 .toFile()
 
         fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
@@ -345,7 +345,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         }
 
         output.mkdirs()
-        output.toPath().resolve("workers").toFile().mkdir()
+        output.toPath().resolve("sessions").toFile().mkdir()
 
         // TODO Default to warn, and don't make a special detail.log: print thees messages to the console.
         val fa = FileAppender()
