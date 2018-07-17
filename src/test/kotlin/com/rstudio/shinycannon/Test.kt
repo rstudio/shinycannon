@@ -47,7 +47,6 @@ class Test {
         }
 
         val notIgnorableMessages = listOf(
-            """o""",
             """a["0#0|m|{\"custom\":{\"credentials\":null,\"license\":{\"status\":\"activated\",\"evaluation\":false,\"expiration\":1534550400000}}}"]""",
             """a["1#0|m|{\"config\":{\"workerId\":\"139eab2067146f4b70e4391a9584f782467a5f00320f9897\",\"sessionId\":\"60a1c2cb407f38b89ae0bfe34bd9b12f\",\"user\":null}}"]"""
         )

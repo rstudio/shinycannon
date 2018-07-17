@@ -17,18 +17,17 @@ import java.io.PrintWriter
 import java.nio.file.FileSystems
 import java.nio.file.Paths
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatterBuilder
-import java.time.format.DateTimeParseException
 
 fun canIgnore(message: String):Boolean {
-    // Don't ignore messages matching these exact strings. They're "special".
-    val allow = setOf("o")
-    if (allow.contains(message)) return false
 
     // Messages matching these regexes should be ignored.
-    val ignorableRegexes = listOf("""^a\["ACK.*$""", """^\["ACK.*$""", """^h$""")
-            .map(::Regex)
+    val ignorableRegexes = listOf(
+            """^\["0#0\|o\|"\]$""",
+            """^\["0\|o\|"\]$""",
+            """^a\["ACK.*$""",
+            """^\["ACK.*$""",
+            """^h$"""
+    ).map(::Regex)
     for (re in ignorableRegexes) if (re.matches(message)) return true
 
     val messageObject = parseMessage(message)
@@ -261,7 +260,10 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                 session.webSocket = WebSocketFactory().createSocket(wsUrl).also {
                     it.addListener(object : WebSocketAdapter() {
                         override fun onTextMessage(sock: WebSocket, msg: String) {
-                            if (canIgnore(msg)) {
+                            if (msg == "o") {
+                                session.log.debug { "%%% Responding with SockJS initial message" }
+                                sock.sendText("[\"0#0|o|\"]")
+                            } else if (canIgnore(msg)) {
                                 session.log.debug { "%%% Ignoring $msg" }
                             } else {
                                 session.log.debug { "%%% Received: $msg" }
