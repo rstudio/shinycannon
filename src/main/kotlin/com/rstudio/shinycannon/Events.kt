@@ -22,11 +22,12 @@ fun canIgnore(message: String):Boolean {
 
     // Messages matching these regexes should be ignored.
     val ignorableRegexes = listOf(
-            """^a\["ACK.*$""",
-            """^\["ACK.*$""",
-            """^h$"""
-    ).map(::Regex)
-    for (re in ignorableRegexes) if (re.matches(message)) return true
+            """^a\["ACK""",
+            """^\["ACK""",
+            """^h"""
+    ).map(String::toRegex)
+    for (re in ignorableRegexes)
+        if (re.containsMatchIn(message)) return true
 
     val messageObject = parseMessage(message)
 
