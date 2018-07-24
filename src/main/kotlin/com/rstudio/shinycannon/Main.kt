@@ -109,7 +109,13 @@ class ShinySession(val sessionId: Int,
                    val log: KLogger,
                    val credentials: Pair<String, String>?) {
 
-    val wsUrl: String = URIBuilderTiny(httpUrl).setScheme("ws").build().toString()
+    val wsUrl: String = URIBuilderTiny(httpUrl).let { uri ->
+        uri.setScheme(when (uri.scheme) {
+            "http" -> "ws"
+            "https" -> "wss"
+            else -> error("Unknown scheme: ${uri.scheme}")
+        }).build().toString()
+    }
 
     val allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID", "SESSION", "UPLOAD_URL", "UPLOAD_JOB_ID")
     val tokenDictionary: HashMap<String, String> = hashMapOf(
