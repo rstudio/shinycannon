@@ -29,6 +29,9 @@ fun canIgnore(message: String):Boolean {
     for (re in ignorableRegexes)
         if (re.containsMatchIn(message)) return true
 
+    // This special SockJS init message should not be ignored.
+    if (message == "o") return false
+
     val messageObject = parseMessage(message)
 
     if (messageObject == null)
@@ -259,10 +262,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                 session.webSocket = WebSocketFactory().createSocket(wsUrl).also {
                     it.addListener(object : WebSocketAdapter() {
                         override fun onTextMessage(sock: WebSocket, msg: String) {
-                            if (msg == "o") {
-                                session.log.debug { "%%% Responding with SockJS initial message" }
-                                sock.sendText("[\"0#0|o|\"]")
-                            } else if (canIgnore(msg)) {
+                            if (canIgnore(msg)) {
                                 session.log.debug { "%%% Ignoring $msg" }
                             } else {
                                 session.log.debug { "%%% Received: $msg" }
