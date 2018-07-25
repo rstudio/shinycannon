@@ -5,11 +5,15 @@ import org.apache.http.HttpEntity
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.entity.UrlEncodedFormEntity
-import org.apache.http.client.methods.*
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase
+import org.apache.http.client.methods.HttpGet
+import org.apache.http.client.methods.HttpPost
+import org.apache.http.client.methods.HttpUriRequest
 import org.apache.http.cookie.Cookie
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.BasicCookieStore
 import org.apache.http.impl.client.HttpClientBuilder
+import org.apache.http.impl.cookie.BasicClientCookie
 import org.apache.http.message.BasicNameValuePair
 import org.w3c.dom.NamedNodeMap
 import org.w3c.dom.Node
@@ -113,9 +117,16 @@ fun loginUrlFor(appUrl: String, server: AppServer): String {
     }
 }
 
-fun BasicCookieStore.copy(): BasicCookieStore {
-    return BasicCookieStore().also {
-        this.cookies.forEach { this.addCookie(it) }
+// We have a withDomain argument because HttpClient after 4.3 won't send the
+// cookie unless its domain matches the request host.
+// http://www.baeldung.com/httpclient-4-cookies
+fun BasicCookieStore.copy(withDomain: String? = null): BasicCookieStore {
+    return BasicCookieStore().also {store ->
+        this.cookies.forEach {
+            val cookie = BasicClientCookie(it.name, it.value)
+            if (withDomain != null) cookie.domain = withDomain
+            store.addCookie(cookie)
+        }
     }
 }
 
@@ -126,7 +137,8 @@ data class AuthContext(val cookies: BasicCookieStore,
 fun getCookies(request: HttpEntityEnclosingRequestBase,
                startingCookies: BasicCookieStore = BasicCookieStore(),
                entity: HttpEntity): BasicCookieStore {
-    val cookies = startingCookies.copy()
+    val cookies = startingCookies.copy(request.uri.host)
+
     val cfg = RequestConfig.custom()
             .setCookieSpec(CookieSpecs.STANDARD)
             .build()
@@ -137,7 +149,7 @@ fun getCookies(request: HttpEntityEnclosingRequestBase,
             .build()
     request.entity = entity
     client.execute(request).use {
-        check(it.statusLine.statusCode == 200, {
+        check(setOf(200, 302).contains(it.statusLine.statusCode), {
             "Received status ${it.statusLine.statusCode} attempting to get cookies"
         })
         return cookies
@@ -171,6 +183,7 @@ fun loginSSP(context: AuthContext, username: String, password: String): Cookie {
             .let { UrlEncodedFormEntity(it) }
 
     val post = HttpPost(context.loginUrl)
+
     val authCookie = getCookies(post, context.cookies, entity)
             .cookies
             .firstOrNull { it.name == "session_state" }
@@ -182,7 +195,9 @@ fun postLogin(appUrl: String, username: String, password: String): Cookie {
 
     val resp = slurp(HttpGet(appUrl))
     val server = servedBy(resp)
-    val context = AuthContext(resp.cookies, getInputs(resp, server), loginUrlFor(appUrl, server))
+    val inputs = getInputs(resp, server)
+    val loginUrl = loginUrlFor(appUrl, server)
+    val context = AuthContext(resp.cookies, inputs, loginUrl)
 
     return when(server) {
         AppServer.RSC -> loginRSC(context, username, password)
