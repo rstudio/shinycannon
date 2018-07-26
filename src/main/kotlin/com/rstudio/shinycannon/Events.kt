@@ -24,7 +24,7 @@ fun canIgnore(message: String):Boolean {
     val ignorableRegexes = listOf(
             """^a\["ACK""",
             """^\["ACK""",
-            """^h"""
+            """^h$"""
     ).map(String::toRegex)
     for (re in ignorableRegexes)
         if (re.containsMatchIn(message)) return true
