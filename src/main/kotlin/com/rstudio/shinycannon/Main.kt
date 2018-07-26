@@ -222,7 +222,7 @@ class EnduranceTest(val args: Sequence<String>,
                     val httpUrl: String,
                     val recording: File,
                     // Amount of time to wait between starting workers until target reached
-                    val warmupInterval: Int = 0,
+                    val warmupInterval: Long = 0,
                     // Time to maintain target number of workers
                     val loadedDurationMinutes: BigDecimal,
                     // Number of workers to maintain
@@ -275,7 +275,7 @@ class EnduranceTest(val args: Sequence<String>,
             thread {
                 var iteration = 0
                 // Continue after some (possibly-zero) millisecond delay
-                Thread.sleep(worker*warmupInterval.toLong())
+                Thread.sleep(worker*warmupInterval)
                 info("Worker $worker warming up")
                 warmupCountdown.countDown()
                 startSession(sessionNum.getAndIncrement(), worker, iteration++)
@@ -313,8 +313,9 @@ class Args(parser: ArgParser) {
     val outputDir by parser.storing("Path to directory to store session logs in for this test run")
             .default("test-logs-${Instant.now()}")
     val overwriteOutput by parser.flagging("Whether or not to delete the output directory before starting, if it exists already")
-    val startInterval by parser.storing("Number of milliseconds to wait between starting workers. Defaults to the length of the recording divided by the number of workers.") { toInt() }
-            .default(-1)
+    val startInterval by parser.storing("Number of milliseconds to wait between starting workers. Defaults to the length of the recording divided by the number of workers.") {
+        toLong()
+    }.default(null)
     val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
         Level.toLevel(this.toUpperCase(), Level.WARN) as Level
     }.default(Level.INFO)
@@ -339,13 +340,12 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         check(recording.isFile && recording.exists())
         val events = readRecording(recording)
 
-        // The default start interval is equal to the length of the recording
-        // divided by the number of workers. This resolves in a load curve
-        // instead of an avalanche at the beginning.
-        val duration = recordingDuration(recording)
-        val defaultStartInterval = duration / workers
+        // If a startInterval was supplied, then use it. Otherwise, compute
+        // based on the length of the recording and the number of workers.
+        val computedStartInterval = startInterval ?: recordingDuration(recording) / workers
 
         val output = File(outputDir)
+
         if (output.exists()) {
             if (overwriteOutput) {
                 // Ensure the existing directory we're about to delete is conceivably an output directory.
@@ -391,7 +391,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
                 recording,
                 numWorkers = workers,
                 outputDir = output,
-                warmupInterval = startInterval,
+                warmupInterval = computedStartInterval,
                 loadedDurationMinutes = loadedDurationMinutes
         )
         loadTest.run()
