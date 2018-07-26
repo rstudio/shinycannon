@@ -109,7 +109,13 @@ class ShinySession(val sessionId: Int,
                    val log: KLogger,
                    val credentials: Pair<String, String>?) {
 
-    val wsUrl: String = URIBuilderTiny(httpUrl).setScheme("ws").build().toString()
+    val wsUrl: String = URIBuilderTiny(httpUrl).let { uri ->
+        uri.setScheme(when (uri.scheme) {
+            "http" -> "ws"
+            "https" -> "wss"
+            else -> error("Unknown scheme: ${uri.scheme}")
+        }).build().toString()
+    }
 
     val allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID", "SESSION", "UPLOAD_URL", "UPLOAD_JOB_ID")
     val tokenDictionary: HashMap<String, String> = hashMapOf(
@@ -127,17 +133,12 @@ class ShinySession(val sessionId: Int,
 
     fun replaceTokens(s: String) = replaceTokens(s, allowedTokens, tokenDictionary)
 
-    // TODO Logging in might be optional for some apps, so it would be better to always attempt to log in if credentials were provided.
     private fun maybeLogin() {
         credentials?.let { (username, password) ->
             if (isProtected(httpUrl)) {
-                ProtectedApp(httpUrl).let { app ->
-                    cookieStore.addCookie(app.postLogin(username, password))
-                }
+                cookieStore.addCookie(postLogin(httpUrl, username, password))
             } else {
-                log.info {
-                    "SHINYCANNON_USER and SHINYCANNON_PASS are set, but the target app does not require authentication."
-                }
+                info("SHINYCANNON_USER and SHINYCANNON_PASS set, but target app doesn't require authentication.")
             }
         }
     }
@@ -245,7 +246,7 @@ class EnduranceTest(val args: Sequence<String>,
 
         fun makeOutputFile(sessionId: Int, workerId: Int, iterationId: Int) = outputDir
                 .toPath()
-                .resolve(Paths.get("workers", "${sessionId}_${workerId}_${iterationId}.csv"))
+                .resolve(Paths.get("sessions", "${sessionId}_${workerId}_${iterationId}.csv"))
                 .toFile()
 
         fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
@@ -265,7 +266,6 @@ class EnduranceTest(val args: Sequence<String>,
                 info(stats.toString())
                 Thread.sleep(5000)
             }
-            println("${Instant.now().toString()} - $stats")
         }
 
         val warmupCountdown = CountDownLatch(numWorkers)
@@ -345,7 +345,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         }
 
         output.mkdirs()
-        output.toPath().resolve("workers").toFile().mkdir()
+        output.toPath().resolve("sessions").toFile().mkdir()
 
         // TODO Default to warn, and don't make a special detail.log: print thees messages to the console.
         val fa = FileAppender()

@@ -1,13 +1,13 @@
 package com.rstudio.shinycannon
 
 import net.moznion.uribuildertiny.URIBuilderTiny
+import org.apache.http.HttpEntity
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.entity.UrlEncodedFormEntity
-import org.apache.http.client.methods.HttpGet
-import org.apache.http.client.methods.HttpPost
-import org.apache.http.client.methods.HttpUriRequest
+import org.apache.http.client.methods.*
 import org.apache.http.cookie.Cookie
+import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.BasicCookieStore
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.message.BasicNameValuePair
@@ -73,10 +73,9 @@ fun servedBy(resp: HttpResponse): AppServer {
     return when {
     // TODO figure out why SSP-XSRF not served by 1.5.8.960
         headers["X-Powered-By"] == "Express" -> AppServer.SSP
-    // SSP doesn't report this as of this writing, but probably will soon
-    // https://github.com/rstudio/shiny-server/pull/361
         headers["X-Powered-By"] == "Shiny Server Pro" -> AppServer.SSP
         headers.containsKey("rscid") -> AppServer.RSC
+        headers["Server"]?.startsWith("RStudio Connect") ?: false -> AppServer.RSC
         else -> AppServer.UNKNOWN
     }
 }
@@ -114,45 +113,80 @@ fun loginUrlFor(appUrl: String, server: AppServer): String {
     }
 }
 
-fun BasicCookieStore.shallowCopy(): BasicCookieStore {
+fun BasicCookieStore.copy(): BasicCookieStore {
     return BasicCookieStore().also {
-        this.cookies.forEach { cookie -> it.addCookie(cookie) }
+        this.cookies.forEach { this.addCookie(it) }
     }
 }
 
-// Stateful container that encapsulates requesting the auth form, extracting
-// necessary data from that response, and incorporating that data into a request
-// that should culminate with an auth cookie (postLogin method).
-class ProtectedApp(val appUrl: String) {
-    private val resp = slurp(HttpGet(appUrl))
-    val server = servedBy(resp)
-    val inputs = getInputs(resp, server)
-    val loginUrl = loginUrlFor(appUrl, server)
+data class AuthContext(val cookies: BasicCookieStore,
+                       val inputs: Map<String, String>,
+                       val loginUrl: String)
 
-    fun postLogin(username: String, password: String): Cookie {
-        val cookies = resp.cookies.shallowCopy()
-        val cfg = RequestConfig.custom()
-                .setCookieSpec(CookieSpecs.STANDARD)
-                .build()
-        val client = HttpClientBuilder
-                .create()
-                .setDefaultCookieStore(cookies)
-                .setDefaultRequestConfig(cfg)
-                .build()
-        val post = HttpPost(loginUrl)
-        val formFields = mapOf(
-                "username" to username,
-                "password" to password
-        ) + inputs
-        post.entity = formFields.map { entry ->
-            BasicNameValuePair(entry.key, entry.value)
-        }.let { pairs -> UrlEncodedFormEntity(pairs) }
-        client.execute(post).use { _ ->
-            return when (server) {
-                AppServer.SSP -> cookies.cookies.firstOrNull { it.name == "session_state" }
-                AppServer.RSC -> cookies.cookies.firstOrNull { it.name == "rsconnect" }
-                else -> error("Don't know how to post login form to $server")
-            } ?: error("Couldn't determine auth cookie for $server")
-        }
+fun getCookies(request: HttpEntityEnclosingRequestBase,
+               startingCookies: BasicCookieStore = BasicCookieStore(),
+               entity: HttpEntity): BasicCookieStore {
+    val cookies = startingCookies.copy()
+    val cfg = RequestConfig.custom()
+            .setCookieSpec(CookieSpecs.STANDARD)
+            .build()
+    val client = HttpClientBuilder
+            .create()
+            .setDefaultCookieStore(cookies)
+            .setDefaultRequestConfig(cfg)
+            .build()
+    request.entity = entity
+    client.execute(request).use {
+        check(it.statusLine.statusCode == 200, {
+            "Received status ${it.statusLine.statusCode} attempting to get cookies"
+        })
+        return cookies
+    }
+}
+
+fun loginRSC(context: AuthContext, username: String, password: String): Cookie {
+
+    val entity = com.google.gson.JsonObject().also {
+        it.addProperty("username", username)
+        it.addProperty("password", password)
+    }.let { StringEntity(it.toString()) }
+
+    val post = HttpPost(context.loginUrl)
+    val authCookie = getCookies(post, context.cookies, entity)
+            .cookies
+            .firstOrNull { it.name == "rsconnect" }
+
+    return checkNotNull(authCookie, { "Couldn't find RSC auth cookie" })
+}
+
+fun loginSSP(context: AuthContext, username: String, password: String): Cookie {
+
+    val fields = mapOf(
+            "username" to username,
+            "password" to password
+    ) + context.inputs
+
+    val entity = fields
+            .map { BasicNameValuePair(it.key, it.value) }
+            .let { UrlEncodedFormEntity(it) }
+
+    val post = HttpPost(context.loginUrl)
+    val authCookie = getCookies(post, context.cookies, entity)
+            .cookies
+            .firstOrNull { it.name == "session_state" }
+
+    return checkNotNull(authCookie, { "Couldn't find SSP auth cookie" })
+}
+
+fun postLogin(appUrl: String, username: String, password: String): Cookie {
+
+    val resp = slurp(HttpGet(appUrl))
+    val server = servedBy(resp)
+    val context = AuthContext(resp.cookies, getInputs(resp, server), loginUrlFor(appUrl, server))
+
+    return when(server) {
+        AppServer.RSC -> loginRSC(context, username, password)
+        AppServer.SSP -> loginSSP(context, username, password)
+        AppServer.UNKNOWN -> error("Can't log in to unknown server type")
     }
 }

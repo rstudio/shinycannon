@@ -17,19 +17,20 @@ import java.io.PrintWriter
 import java.nio.file.FileSystems
 import java.nio.file.Paths
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatterBuilder
-import java.time.format.DateTimeParseException
 
 fun canIgnore(message: String):Boolean {
-    // Don't ignore messages matching these exact strings. They're "special".
-    val allow = setOf("o")
-    if (allow.contains(message)) return false
 
     // Messages matching these regexes should be ignored.
-    val ignorableRegexes = listOf("""^a\["ACK.*$""", """^\["ACK.*$""", """^h$""")
-            .map(::Regex)
-    for (re in ignorableRegexes) if (re.matches(message)) return true
+    val ignorableRegexes = listOf(
+            """^a\["ACK""",
+            """^\["ACK""",
+            """^h$"""
+    ).map(String::toRegex)
+    for (re in ignorableRegexes)
+        if (re.containsMatchIn(message)) return true
+
+    // This special SockJS init message should not be ignored.
+    if (message == "o") return false
 
     val messageObject = parseMessage(message)
 
