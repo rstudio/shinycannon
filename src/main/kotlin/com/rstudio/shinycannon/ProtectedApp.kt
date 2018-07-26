@@ -117,27 +117,13 @@ fun loginUrlFor(appUrl: String, server: AppServer): String {
     }
 }
 
-// We have a withDomain argument because HttpClient after 4.3 won't send the
-// cookie unless its domain matches the request host.
-// http://www.baeldung.com/httpclient-4-cookies
-fun BasicCookieStore.copy(withDomain: String? = null): BasicCookieStore {
-    return BasicCookieStore().also {store ->
-        this.cookies.forEach {
-            val cookie = BasicClientCookie(it.name, it.value)
-            if (withDomain != null) cookie.domain = withDomain
-            store.addCookie(cookie)
-        }
-    }
-}
-
 data class AuthContext(val cookies: BasicCookieStore,
                        val inputs: Map<String, String>,
                        val loginUrl: String)
 
 fun getCookies(request: HttpEntityEnclosingRequestBase,
-               startingCookies: BasicCookieStore = BasicCookieStore(),
+               cookies: BasicCookieStore = BasicCookieStore(),
                entity: HttpEntity): BasicCookieStore {
-    val cookies = startingCookies.copy(request.uri.host)
 
     val cfg = RequestConfig.custom()
             .setCookieSpec(CookieSpecs.STANDARD)
