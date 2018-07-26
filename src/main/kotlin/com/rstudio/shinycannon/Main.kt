@@ -32,8 +32,8 @@ import java.util.regex.Pattern
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
 
-fun readEventLog(logPath: String): ArrayList<Event> {
-    return File(logPath).readLines()
+fun readRecording(recording: File): ArrayList<Event> {
+    return recording.readLines()
             .asSequence()
             .mapIndexed { idx, line -> Pair(idx + 1, line) }
             .filterNot { it.second.startsWith("#") }
@@ -104,7 +104,7 @@ class ShinySession(val sessionId: Int,
                    val workerId: Int,
                    val iterationId: Int,
                    val httpUrl: String,
-                   val logPath: String,
+                   val recording: File,
                    var script: ArrayList<Event>,
                    val log: KLogger,
                    val credentials: Pair<String, String>?) {
@@ -220,7 +220,7 @@ fun info(msg: String) {
 
 class EnduranceTest(val args: Sequence<String>,
                     val httpUrl: String,
-                    val logPath: String,
+                    val recording: File,
                     // Amount of time to wait between starting workers until target reached
                     val warmupInterval: Int = 0,
                     // Time to maintain target number of workers
@@ -236,7 +236,7 @@ class EnduranceTest(val args: Sequence<String>,
 
     fun run() {
         val logger = KotlinLogging.logger {}
-        val log = readEventLog(logPath)
+        val log = readRecording(recording)
         check(log.size > 0) { "input log must not be empty" }
         check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
 
@@ -250,7 +250,7 @@ class EnduranceTest(val args: Sequence<String>,
                 .toFile()
 
         fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
-            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, logPath, log, logger, getCreds())
+            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, recording, log, logger, getCreds())
             val outputFile = makeOutputFile(sessionId, workerId, iterationId)
             outputFile.printWriter().use { out ->
                 out.println("# " + args.joinToString(" "))
@@ -313,11 +313,16 @@ class Args(parser: ArgParser) {
     val outputDir by parser.storing("Path to directory to store session logs in for this test run")
             .default("test-logs-${Instant.now()}")
     val overwriteOutput by parser.flagging("Whether or not to delete the output directory before starting, if it exists already")
-    val startInterval by parser.storing("Number of milliseconds to wait between starting workers") { toInt() }
-            .default(0)
+    val startInterval by parser.storing("Number of milliseconds to wait between starting workers. Defaults to the length of the recording divided by the number of workers.") { toInt() }
+            .default(-1)
     val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
         Level.toLevel(this.toUpperCase(), Level.WARN) as Level
     }.default(Level.INFO)
+}
+
+fun recordingDuration(recording: File): Long {
+    val events = readRecording(recording)
+    return events.last().begin - events.first().begin
 }
 
 fun main(args: Array<String>) = mainBody("shinycannon") {
@@ -329,6 +334,17 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
                   SHINYCANNON_PASS
                 """.trimIndent()
     ))).run {
+
+        val recording = File(recordingPath)
+        check(recording.isFile && recording.exists())
+        val events = readRecording(recording)
+
+        // The default start interval is equal to the length of the recording
+        // divided by the number of workers. This resolves in a load curve
+        // instead of an avalanche at the beginning.
+        val duration = recordingDuration(recording)
+        val defaultStartInterval = duration / workers
+
         val output = File(outputDir)
         if (output.exists()) {
             if (overwriteOutput) {
@@ -366,13 +382,13 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         }
 
         // Copy the recording file to the output directory so runs are easily reproducible.
-        File(recordingPath).copyTo(output.toPath().resolve("recording.log").toFile())
+        recording.copyTo(output.toPath().resolve("recording.log").toFile())
 
         val loadTest = EnduranceTest(
                 // Drop the original logpath from the arglist
                 args.asSequence().drop(1),
                 appUrl,
-                recordingPath,
+                recording,
                 numWorkers = workers,
                 outputDir = output,
                 warmupInterval = startInterval,
