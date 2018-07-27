@@ -136,7 +136,7 @@ class ShinySession(val sessionId: Int,
     private fun maybeLogin() {
         credentials?.let { (username, password) ->
             if (isProtected(httpUrl)) {
-                cookieStore.addCookie(postLogin(httpUrl, username, password))
+                postLogin(httpUrl, username, password, cookies = cookieStore)
             } else {
                 info("SHINYCANNON_USER and SHINYCANNON_PASS set, but target app doesn't require authentication.")
             }

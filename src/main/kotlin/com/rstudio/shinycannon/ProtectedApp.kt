@@ -9,11 +9,9 @@ import org.apache.http.client.methods.HttpEntityEnclosingRequestBase
 import org.apache.http.client.methods.HttpGet
 import org.apache.http.client.methods.HttpPost
 import org.apache.http.client.methods.HttpUriRequest
-import org.apache.http.cookie.Cookie
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.BasicCookieStore
 import org.apache.http.impl.client.HttpClientBuilder
-import org.apache.http.impl.cookie.BasicClientCookie
 import org.apache.http.message.BasicNameValuePair
 import org.w3c.dom.NamedNodeMap
 import org.w3c.dom.Node
@@ -31,8 +29,7 @@ data class HttpResponse(val statusCode: Int,
                         val cookies: BasicCookieStore,
                         val body: String)
 
-fun slurp(req: HttpUriRequest): HttpResponse {
-    val cookies = BasicCookieStore()
+fun slurp(req: HttpUriRequest, cookies: BasicCookieStore = BasicCookieStore()): HttpResponse {
     val cfg = RequestConfig.custom()
             .setCookieSpec(CookieSpecs.STANDARD)
             .build()
@@ -142,7 +139,7 @@ fun getCookies(request: HttpEntityEnclosingRequestBase,
     }
 }
 
-fun loginRSC(context: AuthContext, username: String, password: String): Cookie {
+fun loginRSC(context: AuthContext, username: String, password: String): BasicCookieStore {
 
     val entity = com.google.gson.JsonObject().also {
         it.addProperty("username", username)
@@ -150,14 +147,14 @@ fun loginRSC(context: AuthContext, username: String, password: String): Cookie {
     }.let { StringEntity(it.toString()) }
 
     val post = HttpPost(context.loginUrl)
-    val authCookie = getCookies(post, context.cookies, entity)
-            .cookies
-            .firstOrNull { it.name == "rsconnect" }
 
-    return checkNotNull(authCookie, { "Couldn't find RSC auth cookie" })
+    return getCookies(post, context.cookies, entity).apply {
+        val authCookie = cookies.firstOrNull { it.name == "rsconnect" }
+        checkNotNull(authCookie, { "Couldn't find RSC auth cookie" })
+    }
 }
 
-fun loginSSP(context: AuthContext, username: String, password: String): Cookie {
+fun loginSSP(context: AuthContext, username: String, password: String): BasicCookieStore {
 
     val fields = mapOf(
             "username" to username,
@@ -170,20 +167,19 @@ fun loginSSP(context: AuthContext, username: String, password: String): Cookie {
 
     val post = HttpPost(context.loginUrl)
 
-    val authCookie = getCookies(post, context.cookies, entity)
-            .cookies
-            .firstOrNull { it.name == "session_state" }
-
-    return checkNotNull(authCookie, { "Couldn't find SSP auth cookie" })
+    return getCookies(post, context.cookies, entity).apply {
+        val authCookie = cookies.firstOrNull { it.name == "session_state" }
+        checkNotNull(authCookie, { "Couldn't find SSP auth cookie" })
+    }
 }
 
-fun postLogin(appUrl: String, username: String, password: String): Cookie {
+fun postLogin(appUrl: String, username: String, password: String, cookies: BasicCookieStore): BasicCookieStore {
 
-    val resp = slurp(HttpGet(appUrl))
+    val resp = slurp(HttpGet(appUrl), cookies = cookies)
     val server = servedBy(resp)
     val inputs = getInputs(resp, server)
     val loginUrl = loginUrlFor(appUrl, server)
-    val context = AuthContext(resp.cookies, inputs, loginUrl)
+    val context = AuthContext(cookies, inputs, loginUrl)
 
     return when(server) {
         AppServer.RSC -> loginRSC(context, username, password)
