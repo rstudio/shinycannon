@@ -73,7 +73,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
         } catch (t: Throwable) {
             // TODO Failure/closing: close the session instead of trying to continue
             out.printCsv(session.sessionId, session.workerId, session.iterationId, "FAIL", nowMs(), lineNumber, "")
-            session.log.warn(t) { "${name()} failed (line: $lineNumber)" }
+            session.logger.warn("${name()} failed (line: $lineNumber)", t)
             return false
         }
         return true
@@ -262,17 +262,21 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                     it.addListener(object : WebSocketAdapter() {
                         override fun onTextMessage(sock: WebSocket, msg: String) {
                             if (canIgnore(msg)) {
-                                session.log.debug { "%%% Ignoring $msg" }
+                                session.logger.debug { "%%% Ignoring $msg" }
                             } else {
-                                session.log.debug { "%%% Received: $msg" }
+                                session.logger.debug { "%%% Received: $msg" }
                                 if (!session.receiveQueue.offer(session.replaceTokens(msg))) {
                                     throw Exception("receiveQueue is full (max = ${session.receiveQueueSize})")
                                 }
                             }
                         }
                         // TODO Failure/closing: end the session when the server closes the websocket
-                        override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?) =
-                                session.log.debug { "%%% State $newState" }
+//                        override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?) =
+//                                session.logger.debug { "%%% State $newState" }
+
+                        override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?): Unit {
+
+                        }
                     })
 
                     it.addHeader("Cookie", session
@@ -295,7 +299,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                 // Waits indefinitely for a message to become available
                 // TODO Look into how to shut down properly for each WS_RECV_* type. Consider shutdown exception or shutdown sentinel
                 val receivedStr = session.receiveQueue.take()
-                session.log.debug { "WS_RECV received: $receivedStr" }
+                session.logger.debug { "WS_RECV received: $receivedStr" }
                 // Because the messages in our log file are extra-escaped, we need to unescape once.
                 val expectingStr = session.replaceTokens(message)
                 val expectingObj = parseMessage(expectingStr)
@@ -321,7 +325,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
             return tryLog(session, out) {
                 // Waits indefinitely for a message to become available
                 val receivedStr = session.receiveQueue.take()
-                session.log.debug { "WS_RECV_INIT received: $receivedStr" }
+                session.logger.debug { "WS_RECV_INIT received: $receivedStr" }
 
                 val sessionId = parseMessage(receivedStr)
                         ?.get("config")
@@ -331,7 +335,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                         ?: throw IllegalStateException("Expected sessionId from WS_RECV_INIT message")
 
                 session.tokenDictionary["SESSION"] = sessionId
-                session.log.debug { "WS_RECV_INIT got SESSION: ${session.tokenDictionary["SESSION"]}" }
+                session.logger.debug { "WS_RECV_INIT got SESSION: ${session.tokenDictionary["SESSION"]}" }
             }
         }
     }
@@ -343,7 +347,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
             return tryLog(session, out) {
                 // Waits indefinitely for a message to become available
                 val receivedStr = session.receiveQueue.take()
-                session.log.debug { "WS_RECV_BEGIN_UPLOAD received: $receivedStr" }
+                session.logger.debug { "WS_RECV_BEGIN_UPLOAD received: $receivedStr" }
 
                 val jobId = parseMessage(receivedStr)
                         ?.get("response")
@@ -356,7 +360,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
 
                 session.tokenDictionary["UPLOAD_JOB_ID"] = jobId
 
-                session.log.debug { "WS_RECV_BEGIN_UPLOAD got jobId: $jobId" }
+                session.logger.debug { "WS_RECV_BEGIN_UPLOAD got jobId: $jobId" }
             }
         }
     }
@@ -371,7 +375,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
             return tryLog(session, out) {
                 val text = session.replaceTokens(message)
                 session.webSocket!!.sendText(text)
-                session.log.debug { "WS_SEND sent: $text" }
+                session.logger.debug { "WS_SEND sent: $text" }
             }
         }
     }
@@ -384,7 +388,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
         override fun handle(session: ShinySession, out: PrintWriter): Boolean {
             return tryLog(session, out) {
                 session.webSocket!!.disconnect()
-                session.log.debug { "WS_CLOSE sent" }
+                session.logger.debug { "WS_CLOSE sent" }
             }
         }
     }
