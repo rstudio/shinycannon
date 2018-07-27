@@ -338,7 +338,6 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
 
         val recording = File(recordingPath)
         check(recording.isFile && recording.exists())
-        val events = readRecording(recording)
 
         // If a startInterval was supplied, then use it. Otherwise, compute
         // based on the length of the recording and the number of workers.
