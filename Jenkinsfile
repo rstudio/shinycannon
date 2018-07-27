@@ -34,11 +34,12 @@ try {
       	sh """
       	aws s3 cp *.rpm s3://rstudio-shinycannon-build/\$(cat RELEASE.txt)/rpm/
       	aws s3 cp *.deb s3://rstudio-shinycannon-build/\$(cat RELEASE.txt)/deb/
+      	aws s3 cp *.jar s3://rstudio-shinycannon-build/\$(cat RELEASE.txt)/jar/
       	aws s3 cp RELEASE_URLS.txt s3://rstudio-shinycannon-build/
       	"""
       }
     }
-    // sendNotifications slack_channel: params.SLACK_CHANNEL
+    sendNotifications slack_channel: params.SLACK_CHANNEL
   }
 } catch (err) {
    sendNotifications slack_channel: params.SLACK_CHANNEL, result: 'FAILURE'

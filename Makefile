@@ -55,4 +55,4 @@ RELEASE_URLS.txt: RELEASE.txt
 
 clean:
 	rm -rf package target
-	rm -f $(RPM_FILE) $(DEB_FILE) $(RELEASE_JAR)
+	rm -f $(RPM_FILE) $(DEB_FILE) $(JAR_FILE)
