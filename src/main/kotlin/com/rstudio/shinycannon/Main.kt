@@ -7,14 +7,9 @@ import com.xenomachina.argparser.ArgParser
 import com.xenomachina.argparser.DefaultHelpFormatter
 import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
-import mu.KLogger
-import mu.KotlinLogging
 import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.impl.client.BasicCookieStore
-import org.apache.log4j.FileAppender
-import org.apache.log4j.Level
-import org.apache.log4j.Logger
-import org.apache.log4j.PatternLayout
+import org.apache.log4j.*
 import java.io.File
 import java.io.PrintWriter
 import java.lang.Exception
@@ -106,7 +101,7 @@ class ShinySession(val sessionId: Int,
                    val httpUrl: String,
                    val logPath: String,
                    var script: ArrayList<Event>,
-                   val log: KLogger,
+                   val logger: Logger,
                    val credentials: Pair<String, String>?) {
 
     val wsUrl: String = URIBuilderTiny(httpUrl).let { uri ->
@@ -138,7 +133,7 @@ class ShinySession(val sessionId: Int,
             if (isProtected(httpUrl)) {
                 cookieStore.addCookie(postLogin(httpUrl, username, password))
             } else {
-                info("SHINYCANNON_USER and SHINYCANNON_PASS set, but target app doesn't require authentication.")
+                 logger.info("SHINYCANNON_USER and SHINYCANNON_PASS set, but target app doesn't require authentication.")
             }
         }
     }
@@ -213,11 +208,6 @@ fun getCreds() = listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
         ?.zipWithNext()
         ?.first()
 
-@Synchronized
-fun info(msg: String) {
-    println("${Instant.now().toString()} - $msg")
-}
-
 class EnduranceTest(val args: Sequence<String>,
                     val httpUrl: String,
                     val logPath: String,
@@ -227,7 +217,8 @@ class EnduranceTest(val args: Sequence<String>,
                     val loadedDurationMinutes: BigDecimal,
                     // Number of workers to maintain
                     val numWorkers: Int,
-                    val outputDir: File) {
+                    val outputDir: File,
+                    val logger: Logger) {
 
     val columnNames = arrayOf("session_id", "worker_id", "iteration", "event", "timestamp", "input_line_number", "comment")
 
@@ -235,10 +226,9 @@ class EnduranceTest(val args: Sequence<String>,
     val stats = Stats()
 
     fun run() {
-        val logger = KotlinLogging.logger {}
-        val log = readEventLog(logPath)
-        check(log.size > 0) { "input log must not be empty" }
-        check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
+        val events = readEventLog(logPath)
+        check(events.size > 0) { "Recording must not be empty" }
+        check(events.last().name() == "WS_CLOSE") { "last event in recording not a WS_CLOSE (did you close the tab after recording?)"}
 
         val keepWorking = AtomicBoolean(true)
         val keepShowingStats = AtomicBoolean(true)
@@ -250,7 +240,7 @@ class EnduranceTest(val args: Sequence<String>,
                 .toFile()
 
         fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
-            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, logPath, log, logger, getCreds())
+            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, logPath, events, logger, getCreds())
             val outputFile = makeOutputFile(sessionId, workerId, iterationId)
             outputFile.printWriter().use { out ->
                 out.println("# " + args.joinToString(" "))
@@ -263,7 +253,7 @@ class EnduranceTest(val args: Sequence<String>,
         // Continuous status output
         thread {
             while (keepShowingStats.get()) {
-                info(stats.toString())
+                logger.info(stats.toString())
                 Thread.sleep(5000)
             }
         }
@@ -276,25 +266,25 @@ class EnduranceTest(val args: Sequence<String>,
                 var iteration = 0
                 // Continue after some (possibly-zero) millisecond delay
                 Thread.sleep(worker*warmupInterval.toLong())
-                info("Worker $worker warming up")
+                logger.info("Worker $worker warming up")
                 warmupCountdown.countDown()
                 startSession(sessionNum.getAndIncrement(), worker, iteration++)
                 while (keepWorking.get()) {
                     // Subsequent workers start immediately
-                    info("Worker $worker running again")
+                    logger.info("Worker $worker running again")
                     startSession(sessionNum.getAndIncrement(), worker, iteration++)
                 }
-                info("Worker $worker stopped")
+                logger.info("Worker $worker stopped")
                 finishedCountdown.countDown()
             }
         }
 
-        info("Waiting for warmup to complete")
+        logger.info("Waiting for warmup to complete")
         warmupCountdown.await()
         // TODO minutes should be able to be fractional
-        info("Maintaining for $loadedDurationMinutes minutes (${loadedDurationMinutes*BigDecimal(60000)} ms)")
+        logger.info("Maintaining for $loadedDurationMinutes minutes (${loadedDurationMinutes*BigDecimal(60000)} ms)")
         Thread.sleep((loadedDurationMinutes*BigDecimal(60000)).toLong())
-        info("Stopped maintaining, waiting for workers to stop")
+        logger.info("Stopped maintaining, waiting for workers to stop")
         keepWorking.set(false)
         finishedCountdown.await()
         keepShowingStats.set(false)
@@ -315,9 +305,9 @@ class Args(parser: ArgParser) {
     val overwriteOutput by parser.flagging("Whether or not to delete the output directory before starting, if it exists already")
     val startInterval by parser.storing("Number of milliseconds to wait between starting workers") { toInt() }
             .default(0)
-    val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
+    val logLevel by parser.storing("Console log level (default: warn, available include: debug, info, warn, error)") {
         Level.toLevel(this.toUpperCase(), Level.WARN) as Level
-    }.default(Level.INFO)
+    }.default(Level.WARN)
 }
 
 fun main(args: Array<String>) = mainBody("shinycannon") {
@@ -333,7 +323,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         if (output.exists()) {
             if (overwriteOutput) {
                 // Ensure the existing directory we're about to delete is conceivably an output directory.
-                check(listOf("recording.log", "detail.log", "sessions").map {
+                check(listOf("recording.log", "debug.log", "sessions").map {
                     output.toPath().resolve(it).toFile()
                 }.all { it.exists() }, {
                     "Directory doesn't look like an output directory, so not overwriting. Please delete it manually."
@@ -347,22 +337,41 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         output.mkdirs()
         output.toPath().resolve("sessions").toFile().mkdir()
 
-        // TODO Default to warn, and don't make a special detail.log: print thees messages to the console.
-        val fa = FileAppender()
-        fa.layout = PatternLayout("%5p [%t] %d (%F:%L) - %m%n")
-        fa.threshold = logLevel
-        fa.file = output.toPath().resolve("detail.log").toString()
-        fa.activateOptions()
-        Logger.getRootLogger().addAppender(fa)
+        // This appender prints every global log message to debug.log in the
+        // output directory
+        val debugAppender = FileAppender()
+        debugAppender.layout = PatternLayout("%5p [%t] %d (%F:%L) - %m%n")
+        debugAppender.threshold = Level.DEBUG
+        debugAppender.file = output.toPath().resolve("debug.log").toString()
+        debugAppender.activateOptions()
+        Logger.getRootLogger().addAppender(debugAppender)
 
-        println("Logging at $logLevel level to $outputDir/detail.log")
+        // This appender prints global WARN and ERROR (by default) messages to
+        // the console.
+        val libraryAppender = ConsoleAppender()
+        libraryAppender.layout = object: PatternLayout("%5p [%t] %d (%F:%L) - %m%n") {
+            // Suppresses stack trace (stack traces will still be written to debug.log)
+            override fun ignoresThrowable() = false
+        }
+        libraryAppender.threshold = logLevel
+        libraryAppender.activateOptions()
+        Logger.getRootLogger().addAppender(libraryAppender)
+
+        // This logger prints every application-level INFO or higher to the
+        // console. All messages are also written to debug.log.
+        val appAppender = ConsoleAppender()
+        appAppender.layout = PatternLayout("%5p [%t] %d (%F:%L) - %m%n")
+        appAppender.threshold = Level.INFO
+        appAppender.activateOptions()
+        val appLogger = Logger.getLogger("shinycannon").apply {
+            addAppender(appAppender)
+            addAppender(debugAppender)
+        }
 
         // Set global JVM exception handler before creating any new threads
         // https://stuartsierra.com/2015/05/27/clojure-uncaught-exceptions
-        KotlinLogging.logger("Default").also {
-            Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
-                it.error(exception, { "Uncaught exception on ${thread.name}" })
-            }
+        Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
+            appLogger.error("Uncaught exception on ${thread.name}", exception)
         }
 
         // Copy the recording file to the output directory so runs are easily reproducible.
@@ -376,7 +385,8 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
                 numWorkers = workers,
                 outputDir = output,
                 warmupInterval = startInterval,
-                loadedDurationMinutes = loadedDurationMinutes
+                loadedDurationMinutes = loadedDurationMinutes,
+                logger = appLogger
         )
         loadTest.run()
     }
