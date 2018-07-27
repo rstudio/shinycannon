@@ -310,6 +310,11 @@ class Args(parser: ArgParser) {
     }.default(Level.WARN)
 }
 
+class TersePatternLayout(pattern: String = "%5p [%t] %d (%F:%L) - %m%n"): PatternLayout(pattern) {
+    // Keeps the log message to one line by suppressing stacktrace
+    override fun ignoresThrowable() = false
+}
+
 fun main(args: Array<String>) = mainBody("shinycannon") {
     Args(ArgParser(args, helpFormatter = DefaultHelpFormatter(
             prologue = "shinycannon is a load generation tool for use with Shiny Server Pro and RStudio Connect.",
@@ -337,8 +342,8 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         output.mkdirs()
         output.toPath().resolve("sessions").toFile().mkdir()
 
-        // This appender prints every global log message to debug.log in the
-        // output directory
+        // This appender prints DEBUG and above to debug.log and is added to the
+        // global logger.
         val debugAppender = FileAppender()
         debugAppender.layout = PatternLayout("%5p [%t] %d (%F:%L) - %m%n")
         debugAppender.threshold = Level.DEBUG
@@ -346,21 +351,18 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         debugAppender.activateOptions()
         Logger.getRootLogger().addAppender(debugAppender)
 
-        // This appender prints global WARN and ERROR (by default) messages to
-        // the console.
+        // This appender prints WARN and ERROR (by default) to the console and
+        // is added to the global logger.
         val libraryAppender = ConsoleAppender()
-        libraryAppender.layout = object: PatternLayout("%5p [%t] %d (%F:%L) - %m%n") {
-            // Suppresses stack trace (stack traces will still be written to debug.log)
-            override fun ignoresThrowable() = false
-        }
+        libraryAppender.layout = TersePatternLayout()
         libraryAppender.threshold = logLevel
         libraryAppender.activateOptions()
         Logger.getRootLogger().addAppender(libraryAppender)
 
         // This logger prints every application-level INFO or higher to the
-        // console. All messages are also written to debug.log.
+        // console. All messages are also written to debug.log via debugAppender.
         val appAppender = ConsoleAppender()
-        appAppender.layout = PatternLayout("%5p [%t] %d (%F:%L) - %m%n")
+        appAppender.layout = TersePatternLayout()
         appAppender.threshold = Level.INFO
         appAppender.activateOptions()
         val appLogger = Logger.getLogger("shinycannon").apply {
