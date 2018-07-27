@@ -1,10 +1,7 @@
 package com.rstudio.shinycannon
 
 import com.google.gson.JsonParser
-import com.neovisionaries.ws.client.WebSocket
-import com.neovisionaries.ws.client.WebSocketAdapter
-import com.neovisionaries.ws.client.WebSocketFactory
-import com.neovisionaries.ws.client.WebSocketState
+import com.neovisionaries.ws.client.*
 import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
@@ -259,24 +256,26 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
 
             return tryLog(session, out) {
                 val wsUrl = session.wsUrl + session.replaceTokens(url)
+                val sessionThread = Thread.currentThread()
                 session.webSocket = WebSocketFactory().createSocket(wsUrl).also {
                     it.addListener(object : WebSocketAdapter() {
                         override fun onTextMessage(sock: WebSocket, msg: String) {
                             if (canIgnore(msg)) {
-                                session.logger.debug { "%%% Ignoring $msg" }
+                                session.logger.debug("%%% Ignoring $msg")
                             } else {
-                                session.logger.debug { "%%% Received: $msg" }
+                                session.logger.debug("%%% Received: $msg")
                                 if (!session.receiveQueue.offer(session.replaceTokens(msg))) {
                                     throw Exception("receiveQueue is full (max = ${session.receiveQueueSize})")
                                 }
                             }
                         }
                         // TODO Failure/closing: end the session when the server closes the websocket
-//                        override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?) =
-//                                session.logger.debug { "%%% State $newState" }
+                        override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?) =
+                                session.logger.debug("%%% State $newState")
 
-                        override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?): Unit {
-
+                        override fun onError(websocket: WebSocket?, cause: WebSocketException?) {
+                            session.logger.error("Websocket error", cause)
+                            sessionThread.interrupt()
                         }
                     })
 
