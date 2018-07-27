@@ -27,8 +27,8 @@ import java.util.regex.Pattern
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
 
-fun readEventLog(logPath: String): ArrayList<Event> {
-    return File(logPath).readLines()
+fun readRecording(recording: File): ArrayList<Event> {
+    return recording.readLines()
             .asSequence()
             .mapIndexed { idx, line -> Pair(idx + 1, line) }
             .filterNot { it.second.startsWith("#") }
@@ -36,8 +36,6 @@ fun readEventLog(logPath: String): ArrayList<Event> {
                 events.also { it.add(Event.fromLine(lineNumber, line)) }
             }
 }
-
-fun eventlogDuration(events: ArrayList<Event>) = events.last().begin - events.first().begin
 
 fun randomHexString(numchars: Int): String {
     val r = SecureRandom()
@@ -99,7 +97,7 @@ class ShinySession(val sessionId: Int,
                    val workerId: Int,
                    val iterationId: Int,
                    val httpUrl: String,
-                   val logPath: String,
+                   val recording: File,
                    var script: ArrayList<Event>,
                    val logger: Logger,
                    val credentials: Pair<String, String>?) {
@@ -210,9 +208,9 @@ fun getCreds() = listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
 
 class EnduranceTest(val args: Sequence<String>,
                     val httpUrl: String,
-                    val logPath: String,
+                    val recording: File,
                     // Amount of time to wait between starting workers until target reached
-                    val warmupInterval: Int = 0,
+                    val warmupInterval: Long = 0,
                     // Time to maintain target number of workers
                     val loadedDurationMinutes: BigDecimal,
                     // Number of workers to maintain
@@ -226,9 +224,9 @@ class EnduranceTest(val args: Sequence<String>,
     val stats = Stats()
 
     fun run() {
-        val events = readEventLog(logPath)
-        check(events.size > 0) { "Recording must not be empty" }
-        check(events.last().name() == "WS_CLOSE") { "last event in recording not a WS_CLOSE (did you close the tab after recording?)"}
+        val log = readRecording(recording)
+        check(log.size > 0) { "input log must not be empty" }
+        check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
 
         val keepWorking = AtomicBoolean(true)
         val keepShowingStats = AtomicBoolean(true)
@@ -240,7 +238,7 @@ class EnduranceTest(val args: Sequence<String>,
                 .toFile()
 
         fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
-            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, logPath, events, logger, getCreds())
+            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, recording, log, logger, getCreds())
             val outputFile = makeOutputFile(sessionId, workerId, iterationId)
             outputFile.printWriter().use { out ->
                 out.println("# " + args.joinToString(" "))
@@ -303,9 +301,10 @@ class Args(parser: ArgParser) {
     val outputDir by parser.storing("Path to directory to store session logs in for this test run")
             .default("test-logs-${Instant.now()}")
     val overwriteOutput by parser.flagging("Whether or not to delete the output directory before starting, if it exists already")
-    val startInterval by parser.storing("Number of milliseconds to wait between starting workers") { toInt() }
-            .default(0)
-    val logLevel by parser.storing("Console log level (default: warn, available include: debug, info, warn, error)") {
+    val startInterval by parser.storing("Number of milliseconds to wait between starting workers. Defaults to the length of the recording divided by the number of workers.") {
+        toLong()
+    }.default(null)
+    val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
         Level.toLevel(this.toUpperCase(), Level.WARN) as Level
     }.default(Level.WARN)
 }
@@ -313,6 +312,11 @@ class Args(parser: ArgParser) {
 class TersePatternLayout(pattern: String = "%5p [%t] %d (%F:%L) - %m%n"): PatternLayout(pattern) {
     // Keeps the log message to one line by suppressing stacktrace
     override fun ignoresThrowable() = false
+}
+
+fun recordingDuration(recording: File): Long {
+    val events = readRecording(recording)
+    return events.last().begin - events.first().begin
 }
 
 fun main(args: Array<String>) = mainBody("shinycannon") {
@@ -324,7 +328,16 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
                   SHINYCANNON_PASS
                 """.trimIndent()
     ))).run {
+
+        val recording = File(recordingPath)
+        check(recording.isFile && recording.exists())
+
+        // If a startInterval was supplied, then use it. Otherwise, compute
+        // based on the length of the recording and the number of workers.
+        val computedStartInterval = startInterval ?: recordingDuration(recording) / workers
+
         val output = File(outputDir)
+
         if (output.exists()) {
             if (overwriteOutput) {
                 // Ensure the existing directory we're about to delete is conceivably an output directory.
@@ -377,19 +390,18 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         }
 
         // Copy the recording file to the output directory so runs are easily reproducible.
-        File(recordingPath).copyTo(output.toPath().resolve("recording.log").toFile())
+        recording.copyTo(output.toPath().resolve("recording.log").toFile())
 
         val loadTest = EnduranceTest(
                 // Drop the original logpath from the arglist
                 args.asSequence().drop(1),
                 appUrl,
-                recordingPath,
+                recording,
                 numWorkers = workers,
                 outputDir = output,
-                warmupInterval = startInterval,
+                warmupInterval = computedStartInterval,
                 loadedDurationMinutes = loadedDurationMinutes,
-                logger = appLogger
-        )
+                logger = appLogger)
         loadTest.run()
     }
 }

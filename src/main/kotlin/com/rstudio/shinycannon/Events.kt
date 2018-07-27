@@ -15,7 +15,6 @@ import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.util.EntityUtils
 import java.io.PrintWriter
 import java.nio.file.FileSystems
-import java.nio.file.Paths
 import java.time.Instant
 
 fun canIgnore(message: String):Boolean {
@@ -232,7 +231,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                     val post = HttpPost(url)
 
                     if (datafile != null) {
-                        val parentDir = Paths.get(session.logPath).parent ?: FileSystems.getDefault().getPath(".")
+                        val parentDir = session.recording.toPath().parent ?: FileSystems.getDefault().getPath(".")
                         val file = parentDir.resolve(datafile).toFile()
                         assert(file.exists() && file.isFile)
                         post.entity = FileEntity(file)
