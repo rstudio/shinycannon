@@ -11,7 +11,6 @@ import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.impl.client.BasicCookieStore
 import org.apache.log4j.*
 import java.io.File
-import java.io.LineNumberReader
 import java.io.PrintWriter
 import java.lang.Exception
 import java.math.BigDecimal
@@ -19,7 +18,6 @@ import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.Instant
 import java.util.*
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
@@ -140,11 +138,6 @@ class ShinySession(val sessionId: Int,
         }
     }
 
-    fun fail(out: PrintWriter, stats: Stats, lineNumber: Int = 0, comment: String = "") {
-        stats.transition(Stats.Transition.FAILED)
-        out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), lineNumber, comment)
-    }
-
     fun run(startDelayMs: Int = 0, out: PrintWriter, stats: Stats) {
         maybeLogin()
         if (startDelayMs > 0) {
@@ -154,10 +147,6 @@ class ShinySession(val sessionId: Int,
         }
         stats.transition(Stats.Transition.RUNNING)
         for (i in 0 until script.size) {
-            if (Thread.interrupted()) {
-                fail(out, stats, comment = "Thread interrupted")
-                return
-            }
             val currentEvent = script[i]
             val sleepFor = currentEvent.sleepBefore(this)
             if (sleepFor > 0) {
@@ -166,7 +155,8 @@ class ShinySession(val sessionId: Int,
                 out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber, "")
             }
             if (!currentEvent.handle(this, out)) {
-                fail(out, stats, currentEvent.lineNumber, comment = "Event.handle failed")
+                stats.transition(Stats.Transition.FAILED)
+                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), currentEvent.lineNumber, "")
                 return
             }
             lastEventEnded = currentEvent.begin
