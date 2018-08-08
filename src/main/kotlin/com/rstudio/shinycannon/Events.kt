@@ -1,10 +1,7 @@
 package com.rstudio.shinycannon
 
 import com.google.gson.JsonParser
-import com.neovisionaries.ws.client.WebSocket
-import com.neovisionaries.ws.client.WebSocketAdapter
-import com.neovisionaries.ws.client.WebSocketFactory
-import com.neovisionaries.ws.client.WebSocketState
+import com.neovisionaries.ws.client.*
 import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
@@ -271,12 +268,13 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                                 }
                             }
                         }
-                        // TODO Failure/closing: end the session when the server closes the websocket
-//                        override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?) =
-//                                session.logger.debug { "%%% State $newState" }
 
-                        override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?): Unit {
-
+                        // onError might be called multiple times, which could result in session.failure being
+                        // set multiple times. This means that the value of session.failure that ultimately
+                        // causes the session's run-loop to terminate might not be the first error that occurred.
+                        // I think that's OK for now.
+                        override fun onError(websocket: WebSocket?, cause: WebSocketException?) {
+                            session.failure = Throwable(cause)
                         }
                     })
 

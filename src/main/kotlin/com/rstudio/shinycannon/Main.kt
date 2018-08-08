@@ -23,6 +23,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import java.util.regex.Pattern
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
@@ -104,6 +105,10 @@ class ShinySession(val sessionId: Int,
                    val logger: Logger,
                    val credentials: Pair<String, String>?) {
 
+    // This is something like an interrupt. It's checked in every iteration of the run-loop.
+    // If it's non-null, the run-loop will terminate.
+    var failure: Throwable? = null
+
     val wsUrl: String = URIBuilderTiny(httpUrl).let { uri ->
         uri.setScheme(when (uri.scheme) {
             "http" -> "ws"
@@ -139,14 +144,28 @@ class ShinySession(val sessionId: Int,
     }
 
     fun run(startDelayMs: Int = 0, out: PrintWriter, stats: Stats) {
+
+        fun fail(reason: Throwable?, i: Int = 0) {
+            stats.transition(Stats.Transition.FAILED)
+            out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), i, "")
+            logger.error("Playback failed, session = ${sessionId}, worker = ${workerId}", reason)
+        }
+
         maybeLogin()
+
         if (startDelayMs > 0) {
             out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_START", nowMs(), 0, "")
             Thread.sleep(startDelayMs.toLong())
             out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_END", nowMs(), 0, "")
         }
+
         stats.transition(Stats.Transition.RUNNING)
+
         for (i in 0 until script.size) {
+            failure?.let {
+                fail(it, i)
+                return
+            }
             val currentEvent = script[i]
             val sleepFor = currentEvent.sleepBefore(this)
             if (sleepFor > 0) {
@@ -154,13 +173,19 @@ class ShinySession(val sessionId: Int,
                 Thread.sleep(sleepFor)
                 out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber, "")
             }
-            if (!currentEvent.handle(this, out)) {
-                stats.transition(Stats.Transition.FAILED)
-                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), currentEvent.lineNumber, "")
+            try {
+                if (!currentEvent.handle(this, out)) {
+                    stats.transition(Stats.Transition.FAILED)
+                    out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), currentEvent.lineNumber, "")
+                    return
+                }
+            } catch (t: Throwable) {
+                fail(t, i)
                 return
             }
             lastEventEnded = currentEvent.begin
         }
+
         stats.transition(Stats.Transition.DONE)
         out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_DONE", nowMs(), 0, "")
     }
