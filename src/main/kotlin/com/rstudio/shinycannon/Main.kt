@@ -406,6 +406,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         val appLogger = Logger.getLogger("shinycannon").apply {
             addAppender(appAppender)
             addAppender(debugAppender)
+            additivity = false
         }
 
         // Set global JVM exception handler before creating any new threads
