@@ -273,7 +273,7 @@ class EnduranceTest(val args: Sequence<String>,
         }
 
         // Continuous status output
-        thread {
+        thread(name = "stats") {
             while (keepShowingStats.get()) {
                 logger.info(stats.toString())
                 Thread.sleep(5000)
@@ -284,7 +284,7 @@ class EnduranceTest(val args: Sequence<String>,
         val finishedCountdown = CountDownLatch(numWorkers)
 
         for (worker in 0 until numWorkers) {
-            thread {
+            thread(name = "worker-${worker}") {
                 var iteration = 0
                 // Continue after some (possibly-zero) millisecond delay
                 Thread.sleep(worker*warmupInterval.toLong())
@@ -333,7 +333,9 @@ class Args(parser: ArgParser) {
     }.default(Level.WARN)
 }
 
-class TersePatternLayout(pattern: String = "%5p [%t] %d (%F:%L) - %m%n"): PatternLayout(pattern) {
+val logPattern = "%d %-5p [%-8t] - %m%n"
+
+class TersePatternLayout(pattern: String = logPattern): PatternLayout(pattern) {
     // Keeps the log message to one line by suppressing stacktrace
     override fun ignoresThrowable() = false
 }
@@ -382,7 +384,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         // This appender prints DEBUG and above to debug.log and is added to the
         // global logger.
         val debugAppender = FileAppender()
-        debugAppender.layout = PatternLayout("%5p [%t] %d (%F:%L) - %m%n")
+        debugAppender.layout = PatternLayout(logPattern)
         debugAppender.threshold = Level.DEBUG
         debugAppender.file = output.toPath().resolve("debug.log").toString()
         debugAppender.activateOptions()
