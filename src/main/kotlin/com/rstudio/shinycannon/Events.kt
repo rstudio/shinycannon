@@ -1,7 +1,10 @@
 package com.rstudio.shinycannon
 
 import com.google.gson.JsonParser
-import com.neovisionaries.ws.client.*
+import com.neovisionaries.ws.client.WebSocket
+import com.neovisionaries.ws.client.WebSocketAdapter
+import com.neovisionaries.ws.client.WebSocketException
+import com.neovisionaries.ws.client.WebSocketFactory
 import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
@@ -13,6 +16,8 @@ import org.apache.http.util.EntityUtils
 import java.io.PrintWriter
 import java.nio.file.FileSystems
 import java.time.Instant
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 
 fun canIgnore(message: String):Boolean {
 
@@ -289,14 +294,26 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
         }
     }
 
+    // Waits indefinitely for a message to become available but prints a warning
+    // every 10 seconds if one hasn't been received yet.
+    fun keepPolling(queue: LinkedBlockingQueue<String>,
+                    timeoutSeconds: Long = 10,
+                    warnFun: (String) -> Unit): String {
+        var msg: String? = null
+        while (true) {
+            msg = queue.poll(timeoutSeconds, TimeUnit.SECONDS)
+            if (msg != null) break;
+            warnFun("Waited ${timeoutSeconds} seconds for message and didn't receive one. Waiting longer...")
+        }
+        return msg!!
+    }
+
     class WS_RECV(override val begin: Long,
                   override val lineNumber: Int,
                   val message: String) : Event(begin, lineNumber) {
         override fun handle(session: ShinySession, out: PrintWriter): Boolean {
             return tryLog(session, out) {
-                // Waits indefinitely for a message to become available
-                // TODO Look into how to shut down properly for each WS_RECV_* type. Consider shutdown exception or shutdown sentinel
-                val receivedStr = session.receiveQueue.take()
+                val receivedStr = keepPolling(session.receiveQueue) { session.logger.warn(it) }
                 session.logger.debug("WS_RECV received: $receivedStr")
                 // Because the messages in our log file are extra-escaped, we need to unescape once.
                 val expectingStr = session.replaceTokens(message)
@@ -321,8 +338,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                        val message: String) : Event(begin, lineNumber) {
         override fun handle(session: ShinySession, out: PrintWriter): Boolean {
             return tryLog(session, out) {
-                // Waits indefinitely for a message to become available
-                val receivedStr = session.receiveQueue.take()
+                val receivedStr = keepPolling(session.receiveQueue) { session.logger.warn(it) }
                 session.logger.debug("WS_RECV_INIT received: $receivedStr")
 
                 val sessionId = parseMessage(receivedStr)
