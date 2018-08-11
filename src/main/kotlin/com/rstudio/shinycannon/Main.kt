@@ -273,7 +273,7 @@ class EnduranceTest(val args: Sequence<String>,
         }
 
         // Continuous status output
-        thread(name = "stats") {
+        thread(name = "progress") {
             while (keepShowingStats.get()) {
                 logger.info(stats.toString())
                 Thread.sleep(5000)
@@ -284,19 +284,20 @@ class EnduranceTest(val args: Sequence<String>,
         val finishedCountdown = CountDownLatch(numWorkers)
 
         for (worker in 0 until numWorkers) {
-            thread(name = "worker-${worker}") {
+            // Worker thread numbering is 1-based because the main thread is thread 0.
+            thread(name = String.format("thread%02d", worker+1)) {
                 var iteration = 0
                 // Continue after some (possibly-zero) millisecond delay
                 Thread.sleep(worker*warmupInterval.toLong())
-                logger.info("Worker $worker warming up")
+                logger.info("Warming up")
                 warmupCountdown.countDown()
                 startSession(sessionNum.getAndIncrement(), worker, iteration++)
                 while (keepWorking.get()) {
                     // Subsequent workers start immediately
-                    logger.info("Worker $worker running again")
+                    logger.info("Running again")
                     startSession(sessionNum.getAndIncrement(), worker, iteration++)
                 }
-                logger.info("Worker $worker stopped")
+                logger.info("Stopped")
                 finishedCountdown.countDown()
             }
         }
@@ -333,7 +334,7 @@ class Args(parser: ArgParser) {
     }.default(Level.WARN)
 }
 
-val logPattern = "%d %-5p [%-8t] - %m%n"
+val logPattern = "%d %p [%t] - %m%n"
 
 class TersePatternLayout(pattern: String = logPattern): PatternLayout(pattern) {
     // Keeps the log message to one line by suppressing stacktrace
@@ -346,6 +347,9 @@ fun recordingDuration(recording: File): Long {
 }
 
 fun main(args: Array<String>) = mainBody("shinycannon") {
+
+    Thread.currentThread().name = "thread00"
+
     Args(ArgParser(args, helpFormatter = DefaultHelpFormatter(
             prologue = "shinycannon is a load generation tool for use with Shiny Server Pro and RStudio Connect.",
             epilogue = """

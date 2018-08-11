@@ -295,15 +295,17 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
     }
 
     // Waits indefinitely for a message to become available but prints a warning
-    // every 10 seconds if one hasn't been received yet.
+    // every 30 seconds if one hasn't been received yet.
     fun keepPolling(queue: LinkedBlockingQueue<String>,
-                    timeoutSeconds: Long = 10,
-                    warnFun: () -> Unit): String {
+                    timeoutSeconds: Long = 30,
+                    warnFun: (Long) -> Unit): String {
         var msg: String? = null
+        var elapsed = timeoutSeconds
         while (true) {
             msg = queue.poll(timeoutSeconds, TimeUnit.SECONDS)
             if (msg != null) break;
-            warnFun()
+            warnFun(elapsed)
+            elapsed += timeoutSeconds
         }
         return msg!!
     }
@@ -313,8 +315,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                   val message: String) : Event(begin, lineNumber) {
         override fun handle(session: ShinySession, out: PrintWriter): Boolean {
             return tryLog(session, out) {
-                val receivedStr = keepPolling(session.receiveQueue, timeoutSeconds = 10) {
-                    session.logger.warn("WS_RECV line ${lineNumber}: Waited 10 seconds for message and didn't receive one. Waiting longer...")
+                val receivedStr = keepPolling(session.receiveQueue) {
+                    session.logger.warn("WS_RECV line ${lineNumber}: Haven't received message after $it seconds")
                 }
                 session.logger.debug("WS_RECV received: $receivedStr")
                 // Because the messages in our log file are extra-escaped, we need to unescape once.
@@ -340,8 +342,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                        val message: String) : Event(begin, lineNumber) {
         override fun handle(session: ShinySession, out: PrintWriter): Boolean {
             return tryLog(session, out) {
-                val receivedStr = keepPolling(session.receiveQueue, timeoutSeconds = 10) {
-                    session.logger.warn("WS_RECV_INIT line ${lineNumber}: Waited 10 seconds for message and didn't receive one. Waiting longer...")
+                val receivedStr = keepPolling(session.receiveQueue) {
+                    session.logger.warn("WS_RECV_INIT line ${lineNumber}: Haven't received message after $it seconds")
                 }
                 session.logger.debug("WS_RECV_INIT received: $receivedStr")
 
