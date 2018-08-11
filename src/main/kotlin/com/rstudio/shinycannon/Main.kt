@@ -334,7 +334,7 @@ class Args(parser: ArgParser) {
     }.default(Level.WARN)
 }
 
-val logPattern = "%d %p [%t] - %m%n"
+val logPattern = "%d{yyyy-MM-dd HH:mm:ss.SSS} %p [%t] - %m%n"
 
 class TersePatternLayout(pattern: String = logPattern): PatternLayout(pattern) {
     // Keeps the log message to one line by suppressing stacktrace
