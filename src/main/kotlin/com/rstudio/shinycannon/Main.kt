@@ -142,9 +142,9 @@ class ShinySession(val sessionId: Int,
 
     fun run(startDelayMs: Int = 0, out: PrintWriter, stats: Stats) {
 
-        fun fail(reason: Throwable?, i: Int = 0) {
+        fun fail(reason: Throwable?, lineNumber: Int = 0) {
             stats.transition(Stats.Transition.FAILED)
-            out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), i, "")
+            out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), lineNumber, "")
             logger.error("Playback failed, session = ${sessionId}, worker = ${workerId}", reason)
         }
 
@@ -159,10 +159,6 @@ class ShinySession(val sessionId: Int,
         stats.transition(Stats.Transition.RUNNING)
 
         for (i in 0 until script.size) {
-            failure?.let {
-                fail(it, i)
-                return
-            }
             val currentEvent = script[i]
             val sleepFor = currentEvent.sleepBefore(this)
             if (sleepFor > 0) {
@@ -171,16 +167,16 @@ class ShinySession(val sessionId: Int,
                 out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber, "")
             }
             try {
-                if (!currentEvent.handle(this, out)) {
-                    stats.transition(Stats.Transition.FAILED)
-                    out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), currentEvent.lineNumber, "")
-                    return
-                }
+                currentEvent.handle(this, out)
             } catch (t: Throwable) {
-                fail(t, i)
+                fail(t, currentEvent.lineNumber)
                 return
             }
             lastEventEnded = currentEvent.begin
+            failure?.let {
+                fail(it, currentEvent.lineNumber)
+                return
+            }
         }
 
         stats.transition(Stats.Transition.DONE)
