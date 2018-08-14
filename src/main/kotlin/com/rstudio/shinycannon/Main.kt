@@ -172,6 +172,12 @@ class ShinySession(val sessionId: Int,
                 out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber, "")
             }
             try {
+                // Since we might have been sleeping for awhile and the websocket might have failed in the meantime,
+                // do a quick error check before attempting to handle the event.
+                failure?.let {
+                    fail(it, currentEvent.lineNumber)
+                    return
+                }
                 currentEvent.handle(this, out)
             } catch (t: Throwable) {
                 fail(t, currentEvent.lineNumber)
