@@ -92,6 +92,11 @@ fun parseMessage(msg: String): JsonObject? {
     }
 }
 
+sealed class WSMessage() {
+    data class String(val str: kotlin.String): WSMessage()
+    data class Error(val err: Throwable): WSMessage()
+}
+
 // Represents a single "user" during the course of a LoadTest.
 class ShinySession(val sessionId: Int,
                    val workerId: Int,
@@ -122,7 +127,7 @@ class ShinySession(val sessionId: Int,
 
     var webSocket: WebSocket? = null
     val receiveQueueSize = 5
-    val receiveQueue: LinkedBlockingQueue<String> = LinkedBlockingQueue(receiveQueueSize)
+    val receiveQueue: LinkedBlockingQueue<WSMessage> = LinkedBlockingQueue(receiveQueueSize)
 
     var lastEventEnded: Long? = null
 
