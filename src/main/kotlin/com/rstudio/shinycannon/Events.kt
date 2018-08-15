@@ -1,10 +1,7 @@
 package com.rstudio.shinycannon
 
 import com.google.gson.JsonParser
-import com.neovisionaries.ws.client.WebSocket
-import com.neovisionaries.ws.client.WebSocketAdapter
-import com.neovisionaries.ws.client.WebSocketException
-import com.neovisionaries.ws.client.WebSocketFactory
+import com.neovisionaries.ws.client.*
 import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
@@ -270,14 +267,15 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                         // set multiple times. This means that the value of session.failure that ultimately
                         // causes the session's run-loop to terminate might not be the first error that occurred.
                         // I think that's OK for now.
-                        override fun onError(websocket: WebSocket?, cause: WebSocketException?) {
-                            val t = Throwable(cause)
+                        override fun onError(websocket: WebSocket, cause: WebSocketException) {
+                            session.fail(cause)
+                        }
 
-                            // This will cause the session to fail in the run-loop.
-                            session.failure = t
-
-                            // This will cause the session to fail if it's currently waiting to receive a message.
-                            session.receiveQueue.offer(WSMessage.Error(t))
+                        override fun onDisconnected(websocket: WebSocket, serverCloseFrame: WebSocketFrame, clientCloseFrame: WebSocketFrame, closedByServer: Boolean) {
+                            // In normal operation, the server should never close the websocket.
+                            if (closedByServer) {
+                                session.fail("Server closed websocket connection")
+                            }
                         }
                     })
 

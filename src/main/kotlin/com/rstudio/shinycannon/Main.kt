@@ -111,6 +111,14 @@ class ShinySession(val sessionId: Int,
     // If it's non-null, the run-loop will terminate.
     var failure: Throwable? = null
 
+    fun fail(cause: String) = fail(Throwable(cause))
+    fun fail(cause: Throwable) {
+        // This will cause the session to fail in the run-loop.
+        failure = cause
+        // This will cause the session to fail if it's currently waiting to receive a message.
+        receiveQueue.offer(WSMessage.Error(cause))
+    }
+
     val wsUrl: String = URIBuilderTiny(httpUrl).let { uri ->
         uri.setScheme(when (uri.scheme) {
             "http" -> "ws"
@@ -145,13 +153,13 @@ class ShinySession(val sessionId: Int,
         }
     }
 
-    fun run(startDelayMs: Int = 0, out: PrintWriter, stats: Stats) {
+    private fun logFail(cause: Throwable, out: PrintWriter, stats: Stats, lineNumber: Int = 0) {
+        stats.transition(Stats.Transition.FAILED)
+        out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), lineNumber, "")
+        logger.error("Playback failed: ${cause.message}", cause)
+    }
 
-        fun fail(reason: Throwable?, lineNumber: Int = 0) {
-            stats.transition(Stats.Transition.FAILED)
-            out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), lineNumber, "")
-            logger.error("Playback failed, session = ${sessionId}, worker = ${workerId}", reason)
-        }
+    fun run(startDelayMs: Int = 0, out: PrintWriter, stats: Stats) {
 
         maybeLogin()
 
@@ -175,17 +183,17 @@ class ShinySession(val sessionId: Int,
                 // Since we might have been sleeping for awhile and the websocket might have failed in the meantime,
                 // do a quick error check before attempting to handle the event.
                 failure?.let {
-                    fail(it, currentEvent.lineNumber)
+                    logFail(it, out, stats, currentEvent.lineNumber)
                     return
                 }
                 currentEvent.handle(this, out)
             } catch (t: Throwable) {
-                fail(t, currentEvent.lineNumber)
+                logFail(t, out, stats, currentEvent.lineNumber)
                 return
             }
             lastEventEnded = currentEvent.begin
             failure?.let {
-                fail(it, currentEvent.lineNumber)
+                logFail(it, out, stats, currentEvent.lineNumber)
                 return
             }
         }
