@@ -92,6 +92,11 @@ fun parseMessage(msg: String): JsonObject? {
     }
 }
 
+sealed class WSMessage() {
+    data class String(val str: kotlin.String): WSMessage()
+    data class Error(val err: Throwable): WSMessage()
+}
+
 // Represents a single "user" during the course of a LoadTest.
 class ShinySession(val sessionId: Int,
                    val workerId: Int,
@@ -101,6 +106,18 @@ class ShinySession(val sessionId: Int,
                    var script: ArrayList<Event>,
                    val logger: Logger,
                    val credentials: Pair<String, String>?) {
+
+    // This is something like an interrupt. It's checked in every iteration of the run-loop.
+    // If it's non-null, the run-loop will terminate.
+    var failure: Throwable? = null
+
+    fun fail(cause: String) = fail(Throwable(cause))
+    fun fail(cause: Throwable) {
+        // This will cause the session to fail in the run-loop.
+        failure = cause
+        // This will cause the session to fail if it's currently waiting to receive a message.
+        receiveQueue.offer(WSMessage.Error(cause))
+    }
 
     val wsUrl: String = URIBuilderTiny(httpUrl).let { uri ->
         uri.setScheme(when (uri.scheme) {
@@ -118,7 +135,7 @@ class ShinySession(val sessionId: Int,
 
     var webSocket: WebSocket? = null
     val receiveQueueSize = 5
-    val receiveQueue: LinkedBlockingQueue<String> = LinkedBlockingQueue(receiveQueueSize)
+    val receiveQueue: LinkedBlockingQueue<WSMessage> = LinkedBlockingQueue(receiveQueueSize)
 
     var lastEventEnded: Long? = null
 
@@ -136,14 +153,24 @@ class ShinySession(val sessionId: Int,
         }
     }
 
+    private fun logFail(cause: Throwable, out: PrintWriter, stats: Stats, lineNumber: Int = 0) {
+        stats.transition(Stats.Transition.FAILED)
+        out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), lineNumber, "")
+        logger.error("Playback failed: ${cause.message}", cause)
+    }
+
     fun run(startDelayMs: Int = 0, out: PrintWriter, stats: Stats) {
+
         maybeLogin()
+
         if (startDelayMs > 0) {
             out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_START", nowMs(), 0, "")
             Thread.sleep(startDelayMs.toLong())
             out.printCsv(sessionId, "PLAYBACK_START_INTERVAL_END", nowMs(), 0, "")
         }
+
         stats.transition(Stats.Transition.RUNNING)
+
         for (i in 0 until script.size) {
             val currentEvent = script[i]
             val sleepFor = currentEvent.sleepBefore(this)
@@ -152,13 +179,25 @@ class ShinySession(val sessionId: Int,
                 Thread.sleep(sleepFor)
                 out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_SLEEPBEFORE_END", nowMs(), currentEvent.lineNumber, "")
             }
-            if (!currentEvent.handle(this, out)) {
-                stats.transition(Stats.Transition.FAILED)
-                out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_FAIL", nowMs(), currentEvent.lineNumber, "")
+            try {
+                // Since we might have been sleeping for awhile and the websocket might have failed in the meantime,
+                // do a quick error check before attempting to handle the event.
+                failure?.let {
+                    logFail(it, out, stats, currentEvent.lineNumber)
+                    return
+                }
+                currentEvent.handle(this, out)
+            } catch (t: Throwable) {
+                logFail(t, out, stats, currentEvent.lineNumber)
                 return
             }
             lastEventEnded = currentEvent.begin
+            failure?.let {
+                logFail(it, out, stats, currentEvent.lineNumber)
+                return
+            }
         }
+
         stats.transition(Stats.Transition.DONE)
         out.printCsv(sessionId, workerId, iterationId, "PLAYBACK_DONE", nowMs(), 0, "")
     }
@@ -249,7 +288,7 @@ class EnduranceTest(val args: Sequence<String>,
         }
 
         // Continuous status output
-        thread {
+        thread(name = "progress") {
             while (keepShowingStats.get()) {
                 logger.info(stats.toString())
                 Thread.sleep(5000)
@@ -260,19 +299,20 @@ class EnduranceTest(val args: Sequence<String>,
         val finishedCountdown = CountDownLatch(numWorkers)
 
         for (worker in 0 until numWorkers) {
-            thread {
+            // Worker thread numbering is 1-based because the main thread is thread 0.
+            thread(name = String.format("thread%02d", worker+1)) {
                 var iteration = 0
                 // Continue after some (possibly-zero) millisecond delay
                 Thread.sleep(worker*warmupInterval.toLong())
-                logger.info("Worker $worker warming up")
+                logger.info("Warming up")
                 warmupCountdown.countDown()
                 startSession(sessionNum.getAndIncrement(), worker, iteration++)
                 while (keepWorking.get()) {
                     // Subsequent workers start immediately
-                    logger.info("Worker $worker running again")
+                    logger.info("Running again")
                     startSession(sessionNum.getAndIncrement(), worker, iteration++)
                 }
-                logger.info("Worker $worker stopped")
+                logger.info("Stopped")
                 finishedCountdown.countDown()
             }
         }
@@ -309,7 +349,9 @@ class Args(parser: ArgParser) {
     }.default(Level.WARN)
 }
 
-class TersePatternLayout(pattern: String = "%5p [%t] %d (%F:%L) - %m%n"): PatternLayout(pattern) {
+val logPattern = "%d{yyyy-MM-dd HH:mm:ss.SSS} %p [%t] - %m%n"
+
+class TersePatternLayout(pattern: String = logPattern): PatternLayout(pattern) {
     // Keeps the log message to one line by suppressing stacktrace
     override fun ignoresThrowable() = false
 }
@@ -320,6 +362,9 @@ fun recordingDuration(recording: File): Long {
 }
 
 fun main(args: Array<String>) = mainBody("shinycannon") {
+
+    Thread.currentThread().name = "thread00"
+
     Args(ArgParser(args, helpFormatter = DefaultHelpFormatter(
             prologue = "shinycannon is a load generation tool for use with Shiny Server Pro and RStudio Connect.",
             epilogue = """
@@ -358,7 +403,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         // This appender prints DEBUG and above to debug.log and is added to the
         // global logger.
         val debugAppender = FileAppender()
-        debugAppender.layout = PatternLayout("%5p [%t] %d (%F:%L) - %m%n")
+        debugAppender.layout = PatternLayout(logPattern)
         debugAppender.threshold = Level.DEBUG
         debugAppender.file = output.toPath().resolve("debug.log").toString()
         debugAppender.activateOptions()
@@ -381,6 +426,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         val appLogger = Logger.getLogger("shinycannon").apply {
             addAppender(appAppender)
             addAppender(debugAppender)
+            additivity = false
         }
 
         // Set global JVM exception handler before creating any new threads

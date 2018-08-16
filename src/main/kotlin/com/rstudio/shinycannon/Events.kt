@@ -1,10 +1,7 @@
 package com.rstudio.shinycannon
 
 import com.google.gson.JsonParser
-import com.neovisionaries.ws.client.WebSocket
-import com.neovisionaries.ws.client.WebSocketAdapter
-import com.neovisionaries.ws.client.WebSocketFactory
-import com.neovisionaries.ws.client.WebSocketState
+import com.neovisionaries.ws.client.*
 import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
@@ -16,6 +13,8 @@ import org.apache.http.util.EntityUtils
 import java.io.PrintWriter
 import java.nio.file.FileSystems
 import java.time.Instant
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 
 fun canIgnore(message: String):Boolean {
 
@@ -61,22 +60,15 @@ fun canIgnore(message: String):Boolean {
 
 sealed class Event(open val begin: Long, open val lineNumber: Int) {
     open fun sleepBefore(session: ShinySession): Long = 0
-    // Returning true means the session is still valid, continue. False means handling has failed, stop.
-    abstract fun handle(session: ShinySession, out: PrintWriter): Boolean
+
+    abstract fun handle(session: ShinySession, out: PrintWriter)
+
     fun name() = this::class.java.typeName.split("$").last()
 
-    fun tryLog(session: ShinySession, out: PrintWriter, body: () -> Unit): Boolean {
+    fun withLog(session: ShinySession, out: PrintWriter, body: () -> Unit) {
         out.printCsv(session.sessionId, session.workerId, session.iterationId, "${name()}_START", nowMs(), lineNumber, "")
-        try {
-            body()
-            out.printCsv(session.sessionId, session.workerId, session.iterationId, "${name()}_END", nowMs(), lineNumber, "")
-        } catch (t: Throwable) {
-            // TODO Failure/closing: close the session instead of trying to continue
-            out.printCsv(session.sessionId, session.workerId, session.iterationId, "FAIL", nowMs(), lineNumber, "")
-            session.logger.warn("${name()} failed (line: $lineNumber)", t)
-            return false
-        }
-        return true
+        body()
+        out.printCsv(session.sessionId, session.workerId, session.iterationId, "${name()}_END", nowMs(), lineNumber, "")
     }
 
     companion object {
@@ -164,8 +156,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                     // TODO The calculation involving "begin" changes with the latest shinyloadtest output (begin/end fields)
                     if (session.webSocket == null) 0 else (begin - (session.lastEventEnded ?: begin))
 
-            override fun handle(session: ShinySession, out: PrintWriter): Boolean {
-                return tryLog(session, out) { get(session) }
+            override fun handle(session: ShinySession, out: PrintWriter) {
+                withLog(session, out) { get(session) }
             }
         }
 
@@ -173,8 +165,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                        override val lineNumber: Int,
                        override val url: String,
                        override val status: Int) : Http(begin, lineNumber, url, status) {
-            override fun handle(session: ShinySession, out: PrintWriter): Boolean {
-                return tryLog(session, out) {
+            override fun handle(session: ShinySession, out: PrintWriter) {
+                withLog(session, out) {
                     val response = get(session)
                     // session.get(this.url)
                     val re = """.*<base href="_w_([0-9a-z]+)/.*"""
@@ -193,8 +185,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                        override val lineNumber: Int,
                        override val url: String,
                        override val status: Int) : Http(begin, lineNumber, url, status) {
-            override fun handle(session: ShinySession, out: PrintWriter): Boolean {
-                return tryLog(session, out) { get(session) }
+            override fun handle(session: ShinySession, out: PrintWriter) {
+                withLog(session, out) { get(session) }
             }
         }
 
@@ -202,8 +194,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                       override val lineNumber: Int,
                       override val url: String,
                       override val status: Int) : Http(begin, lineNumber, url, status) {
-            override fun handle(session: ShinySession, out: PrintWriter): Boolean {
-                return tryLog(session, out) {
+            override fun handle(session: ShinySession, out: PrintWriter) {
+                withLog(session, out) {
                     session.tokenDictionary["TOKEN"] = get(session)
                 }
             }
@@ -214,8 +206,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                        override val status: Int,
                        override val url: String,
                        val datafile: String?): Http(begin, lineNumber, url, status) {
-            override fun handle(session: ShinySession, out: PrintWriter): Boolean {
-                return tryLog(session, out) {
+            override fun handle(session: ShinySession, out: PrintWriter) {
+                withLog(session, out) {
                     val url = URIBuilderTiny(session.httpUrl)
                             .appendRawPathsByString(session.replaceTokens(url))
                             .build()
@@ -253,10 +245,10 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
     class WS_OPEN(override val begin: Long,
                   override val lineNumber: Int,
                   val url: String) : Event(begin, lineNumber) {
-        override fun handle(session: ShinySession, out: PrintWriter): Boolean {
+        override fun handle(session: ShinySession, out: PrintWriter) {
             check(session.webSocket == null) { "Tried to WS_OPEN but already have a websocket" }
 
-            return tryLog(session, out) {
+            withLog(session, out) {
                 val wsUrl = session.wsUrl + session.replaceTokens(url)
                 session.webSocket = WebSocketFactory().createSocket(wsUrl).also {
                     it.addListener(object : WebSocketAdapter() {
@@ -265,17 +257,25 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                                 session.logger.debug("%%% Ignoring $msg")
                             } else {
                                 session.logger.debug("%%% Received: $msg")
-                                if (!session.receiveQueue.offer(session.replaceTokens(msg))) {
+                                if (!session.receiveQueue.offer(WSMessage.String(session.replaceTokens(msg)))) {
                                     throw Exception("receiveQueue is full (max = ${session.receiveQueueSize})")
                                 }
                             }
                         }
-                        // TODO Failure/closing: end the session when the server closes the websocket
-//                        override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?) =
-//                                session.logger.debug { "%%% State $newState" }
 
-                        override fun onStateChanged(websocket: WebSocket?, newState: WebSocketState?): Unit {
+                        // onError might be called multiple times, which could result in session.failure being
+                        // set multiple times. This means that the value of session.failure that ultimately
+                        // causes the session's run-loop to terminate might not be the first error that occurred.
+                        // I think that's OK for now.
+                        override fun onError(websocket: WebSocket, cause: WebSocketException) {
+                            session.fail(cause)
+                        }
 
+                        override fun onDisconnected(websocket: WebSocket, serverCloseFrame: WebSocketFrame, clientCloseFrame: WebSocketFrame, closedByServer: Boolean) {
+                            // In normal operation, the server should never close the websocket.
+                            if (closedByServer) {
+                                session.fail("Server closed websocket connection")
+                            }
                         }
                     })
 
@@ -291,14 +291,32 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
         }
     }
 
+    // Waits indefinitely for a message to become available but prints a warning
+    // every 30 seconds if one hasn't been received yet.
+    fun keepPolling(queue: LinkedBlockingQueue<WSMessage>,
+                    timeoutSeconds: Long = 30,
+                    warnFun: (Long) -> Unit): String {
+        var elapsed = timeoutSeconds
+        while (true) {
+            queue.poll(timeoutSeconds, TimeUnit.SECONDS)?.let { msg ->
+                when (msg) {
+                    is WSMessage.Error -> throw msg.err
+                    is WSMessage.String -> return msg.str
+                }
+            }
+            warnFun(elapsed)
+            elapsed += timeoutSeconds
+        }
+    }
+
     class WS_RECV(override val begin: Long,
                   override val lineNumber: Int,
                   val message: String) : Event(begin, lineNumber) {
-        override fun handle(session: ShinySession, out: PrintWriter): Boolean {
-            return tryLog(session, out) {
-                // Waits indefinitely for a message to become available
-                // TODO Look into how to shut down properly for each WS_RECV_* type. Consider shutdown exception or shutdown sentinel
-                val receivedStr = session.receiveQueue.take()
+        override fun handle(session: ShinySession, out: PrintWriter) {
+            withLog(session, out) {
+                val receivedStr = keepPolling(session.receiveQueue) {
+                    session.logger.warn("WS_RECV line ${lineNumber}: Haven't received message after $it seconds")
+                }
                 session.logger.debug("WS_RECV received: $receivedStr")
                 // Because the messages in our log file are extra-escaped, we need to unescape once.
                 val expectingStr = session.replaceTokens(message)
@@ -321,10 +339,11 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
     class WS_RECV_INIT(override val begin: Long,
                        override val lineNumber: Int,
                        val message: String) : Event(begin, lineNumber) {
-        override fun handle(session: ShinySession, out: PrintWriter): Boolean {
-            return tryLog(session, out) {
-                // Waits indefinitely for a message to become available
-                val receivedStr = session.receiveQueue.take()
+        override fun handle(session: ShinySession, out: PrintWriter) {
+            withLog(session, out) {
+                val receivedStr = keepPolling(session.receiveQueue) {
+                    session.logger.warn("WS_RECV_INIT line ${lineNumber}: Haven't received message after $it seconds")
+                }
                 session.logger.debug("WS_RECV_INIT received: $receivedStr")
 
                 val sessionId = parseMessage(receivedStr)
@@ -343,10 +362,11 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
     class WS_RECV_BEGIN_UPLOAD(override val begin: Long,
                                override val lineNumber: Int,
                                val message: String) : Event(begin, lineNumber) {
-        override fun handle(session: ShinySession, out: PrintWriter): Boolean {
-            return tryLog(session, out) {
-                // Waits indefinitely for a message to become available
-                val receivedStr = session.receiveQueue.take()
+        override fun handle(session: ShinySession, out: PrintWriter) {
+            withLog(session, out) {
+                val receivedStr = keepPolling(session.receiveQueue) {
+                    session.logger.warn("WS_RECV_BEGIN_UPLOAD line ${lineNumber}: Haven't received message after $it seconds")
+                }
                 session.logger.debug("WS_RECV_BEGIN_UPLOAD received: $receivedStr")
 
                 val jobId = parseMessage(receivedStr)
@@ -371,8 +391,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
         override fun sleepBefore(session: ShinySession) =
                 begin - (session.lastEventEnded ?: begin)
 
-        override fun handle(session: ShinySession, out: PrintWriter): Boolean {
-            return tryLog(session, out) {
+        override fun handle(session: ShinySession, out: PrintWriter) {
+            withLog(session, out) {
                 val text = session.replaceTokens(message)
                 session.webSocket!!.sendText(text)
                 session.logger.debug("WS_SEND sent: $text")
@@ -385,8 +405,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
         override fun sleepBefore(session: ShinySession) =
                 begin - (session.lastEventEnded ?: begin)
 
-        override fun handle(session: ShinySession, out: PrintWriter): Boolean {
-            return tryLog(session, out) {
+        override fun handle(session: ShinySession, out: PrintWriter) {
+            withLog(session, out) {
                 session.webSocket!!.disconnect()
                 session.logger.debug("WS_CLOSE sent")
             }
