@@ -28,7 +28,7 @@ packages: $(RPM_FILE) $(DEB_FILE) $(JAR_FILE) $(BIN_FILE)
 # $(VERSION_FILE) is embededed in the jar to provide the version at runtime.
 $(MAVEN_UBERJAR):
 	mvn package
-	$(shell echo -n $(VERSION)-$(GIT_SHA) > $(VERSION_FILE))
+	echo -n $(VERSION)-$(GIT_SHA) > $(VERSION_FILE)
 	jar uf $(MAVEN_UBERJAR) $(VERSION_FILE)
 	rm -f $(VERSION_FILE)
 
@@ -59,7 +59,7 @@ RELEASE.txt:
 
 RELEASE_URLS.txt: RELEASE.txt
 	rm -f $@
-	echo https://s2.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/deb/$(DEB_FILE) >> $@
+	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/deb/$(DEB_FILE) >> $@
 	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/rpm/$(RPM_FILE) >> $@
 	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/jar/$(JAR_FILE) >> $@
 	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/bin/$(BIN_FILE) >> $@
