@@ -328,6 +328,10 @@ class EnduranceTest(val args: Sequence<String>,
         finishedCountdown.await()
         keepShowingStats.set(false)
         // TODO make the stats thing update in place, and look cool too maybe?
+
+        // Workaround until https://github.com/TakahikoKawasaki/nv-websocket-client/pull/169 is merged or otherwise fixed.
+        // Timers in the websocket code hold up the JVM, so we must explicity terminate.
+        exitProcess(0);
     }
 
 }
