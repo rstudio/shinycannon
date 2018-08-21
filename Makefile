@@ -1,6 +1,8 @@
 VERSION=$(shell xmllint --xpath '/*[local-name()="project"]/*[local-name()="version"]/text()' pom.xml)
 GIT_SHA=$(shell git rev-parse --short HEAD)
 
+VERSION_FILE=shinycannon-version.txt
+
 MAVEN_UBERJAR=target/shinycannon-$(VERSION)-jar-with-dependencies.jar
 
 PREFIX=package/usr/local
@@ -23,8 +25,12 @@ packages: $(RPM_FILE) $(DEB_FILE) $(JAR_FILE) $(BIN_FILE)
 # This is the uberjar produced and named by Maven. It's renamed to $(JAR_FILE),
 # which is the uberjar we upload to S3 and document using. The only difference
 # between the two is that the $(JAR_FILE) file name contains $(GIT_SHA).
+# $(VERSION_FILE) is embededed in the jar to provide the version at runtime.
 $(MAVEN_UBERJAR):
 	mvn package
+	$(shell echo -n $(VERSION)-$(GIT_SHA) > $(VERSION_FILE))
+	jar uf $(MAVEN_UBERJAR) $(VERSION_FILE)
+	rm -f $(VERSION_FILE)
 
 $(BINDIR)/shinycannon: head.sh $(MAVEN_UBERJAR)
 	mkdir -p $(dir $@)
@@ -60,4 +66,6 @@ RELEASE_URLS.txt: RELEASE.txt
 
 clean:
 	rm -rf package target
-	rm -f $(RPM_FILE) $(DEB_FILE) $(JAR_FILE) $(BIN_FILE)
+	rm -f $(VERSION_FILE) $(RPM_FILE) $(DEB_FILE) $(JAR_FILE) $(BIN_FILE)
+
+print-%  : ; @echo $* = $($*)

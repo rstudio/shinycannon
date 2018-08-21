@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Pattern
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
+import kotlin.system.exitProcess
 
 fun readRecording(recording: File): ArrayList<Event> {
     return recording.readLines()
@@ -361,9 +362,15 @@ fun recordingDuration(recording: File): Long {
     return events.last().begin - events.first().begin
 }
 
-fun main(args: Array<String>) = mainBody("shinycannon") {
+// shinycannon-version.txt is added to the .jar by the Makefile. If the code is built by other means (like IntelliJ),
+// that file won't be on the classpath.
+fun getVersion() = Thread.currentThread()
+        .contextClassLoader
+        .getResource("shinycannon-version.txt")?.let {
+            it.readText()
+        } ?: "development"
 
-    Thread.currentThread().name = "thread00"
+fun main(args: Array<String>) = mainBody("shinycannon") {
 
     Args(ArgParser(args, helpFormatter = DefaultHelpFormatter(
             prologue = "shinycannon is a load generation tool for use with Shiny Server Pro and RStudio Connect.",
@@ -371,8 +378,12 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
                 environment variables:
                   SHINYCANNON_USER
                   SHINYCANNON_PASS
+
+                version: ${getVersion()}
                 """.trimIndent()
     ))).run {
+
+        Thread.currentThread().name = "thread00"
 
         val recording = File(recordingPath)
         check(recording.isFile && recording.exists())
