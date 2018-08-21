@@ -410,6 +410,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
 
         output.mkdirs()
         output.toPath().resolve("sessions").toFile().mkdir()
+        output.toPath().resolve("shinycannon-version.txt").toFile().writeText(getVersion())
 
         // This appender prints DEBUG and above to debug.log and is added to the
         // global logger.
