@@ -343,9 +343,10 @@ class Args(parser: ArgParser) {
             .default(1)
     val loadedDurationMinutes by parser.storing("Number of minutes to continue simulating sessions in each worker after all workers have completed one session. Can be fractional. Default is 0.") { toBigDecimal() }
             .default(BigDecimal.ZERO)
-    val outputDir by parser.storing("Path to directory to store session logs in for this test run")
+    val outputDir by parser.storing("Path to directory to store session logs in for this test run.")
             .default("test-logs-${Instant.now()}")
-    val overwriteOutput by parser.flagging("Whether or not to delete the output directory before starting, if it exists already")
+    val overwriteOutput by parser.flagging("Delete the output directory before starting, if it exists already.")
+    val debugLog by parser.flagging("Produce a debug.log in the output directory. File can get very large. Defaults to false.")
     val startInterval by parser.storing("Number of milliseconds to wait between starting workers. Defaults to the length of the recording divided by the number of workers.") {
         toLong()
     }.default(null)
@@ -401,7 +402,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         if (output.exists()) {
             if (overwriteOutput) {
                 // Ensure the existing directory we're about to delete is conceivably an output directory.
-                check(listOf("recording.log", "debug.log", "sessions").map {
+                check(listOf("recording.log", "sessions").map {
                     output.toPath().resolve(it).toFile()
                 }.all { it.exists() }, {
                     "Directory doesn't look like an output directory, so not overwriting. Please delete it manually."
@@ -418,12 +419,15 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
 
         // This appender prints DEBUG and above to debug.log and is added to the
         // global logger.
-        val debugAppender = FileAppender()
-        debugAppender.layout = PatternLayout(logPattern)
-        debugAppender.threshold = Level.DEBUG
-        debugAppender.file = output.toPath().resolve("debug.log").toString()
-        debugAppender.activateOptions()
-        Logger.getRootLogger().addAppender(debugAppender)
+        var debugAppender: Appender? = null
+        if (debugLog) {
+            debugAppender = FileAppender()
+            debugAppender.layout = PatternLayout(logPattern)
+            debugAppender.threshold = Level.DEBUG
+            debugAppender.file = output.toPath().resolve("debug.log").toString()
+            debugAppender.activateOptions()
+            Logger.getRootLogger().addAppender(debugAppender)
+        }
 
         // This appender prints WARN and ERROR (by default) to the console and
         // is added to the global logger.
@@ -441,7 +445,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         appAppender.activateOptions()
         val appLogger = Logger.getLogger("shinycannon").apply {
             addAppender(appAppender)
-            addAppender(debugAppender)
+            debugAppender?.let { addAppender(it) }
             additivity = false
         }
 
