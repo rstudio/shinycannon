@@ -371,9 +371,7 @@ fun recordingDuration(recording: File): Long {
 // that file won't be on the classpath.
 fun getVersion() = Thread.currentThread()
         .contextClassLoader
-        .getResource("shinycannon-version.txt")?.let {
-            it.readText()
-        } ?: "development"
+        .getResource("shinycannon-version.txt")?.readText() ?: "development"
 
 fun main(args: Array<String>) = mainBody("shinycannon") {
 
