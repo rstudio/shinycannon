@@ -137,6 +137,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                     .create()
                     .setDefaultCookieStore(session.cookieStore)
                     .setDefaultRequestConfig(cfg)
+                    .setUserAgent(getUserAgent())
                     .build()
             val get = HttpGet(url)
             client.execute(get).use { response ->
@@ -219,6 +220,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                             .create()
                             .setDefaultCookieStore(session.cookieStore)
                             .setDefaultRequestConfig(cfg)
+                            .setUserAgent(getUserAgent())
                             .build()
                     val post = HttpPost(url)
 
@@ -284,6 +286,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                             .cookies
                             .map { "${it.name}=${it.value}" }
                             .joinToString("; "))
+
+                    it.addHeader("user-agent", getUserAgent())
 
                     it.connect()
                 }
