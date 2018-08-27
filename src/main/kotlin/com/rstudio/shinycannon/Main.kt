@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Pattern
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
+import kotlin.system.exitProcess
 
 fun readRecording(recording: File): ArrayList<Event> {
     return recording.readLines()
@@ -327,6 +328,10 @@ class EnduranceTest(val args: Sequence<String>,
         finishedCountdown.await()
         keepShowingStats.set(false)
         // TODO make the stats thing update in place, and look cool too maybe?
+
+        // Workaround until https://github.com/TakahikoKawasaki/nv-websocket-client/pull/169 is merged or otherwise fixed.
+        // Timers in the websocket code hold up the JVM, so we must explicity terminate.
+        exitProcess(0);
     }
 
 }
@@ -338,9 +343,10 @@ class Args(parser: ArgParser) {
             .default(1)
     val loadedDurationMinutes by parser.storing("Number of minutes to continue simulating sessions in each worker after all workers have completed one session. Can be fractional. Default is 0.") { toBigDecimal() }
             .default(BigDecimal.ZERO)
-    val outputDir by parser.storing("Path to directory to store session logs in for this test run")
+    val outputDir by parser.storing("Path to directory to store session logs in for this test run.")
             .default("test-logs-${Instant.now()}")
-    val overwriteOutput by parser.flagging("Whether or not to delete the output directory before starting, if it exists already")
+    val overwriteOutput by parser.flagging("Delete the output directory before starting, if it exists already.")
+    val debugLog by parser.flagging("Produce a debug.log in the output directory. File can get very large. Defaults to false.")
     val startInterval by parser.storing("Number of milliseconds to wait between starting workers. Defaults to the length of the recording divided by the number of workers.") {
         toLong()
     }.default(null)
@@ -361,9 +367,13 @@ fun recordingDuration(recording: File): Long {
     return events.last().begin - events.first().begin
 }
 
-fun main(args: Array<String>) = mainBody("shinycannon") {
+// shinycannon-version.txt is added to the .jar by the Makefile. If the code is built by other means (like IntelliJ),
+// that file won't be on the classpath.
+fun getVersion() = Thread.currentThread()
+        .contextClassLoader
+        .getResource("shinycannon-version.txt")?.readText() ?: "development"
 
-    Thread.currentThread().name = "thread00"
+fun main(args: Array<String>) = mainBody("shinycannon") {
 
     Args(ArgParser(args, helpFormatter = DefaultHelpFormatter(
             prologue = "shinycannon is a load generation tool for use with Shiny Server Pro and RStudio Connect.",
@@ -371,8 +381,12 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
                 environment variables:
                   SHINYCANNON_USER
                   SHINYCANNON_PASS
+
+                version: ${getVersion()}
                 """.trimIndent()
     ))).run {
+
+        Thread.currentThread().name = "thread00"
 
         val recording = File(recordingPath)
         check(recording.isFile && recording.exists())
@@ -386,7 +400,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         if (output.exists()) {
             if (overwriteOutput) {
                 // Ensure the existing directory we're about to delete is conceivably an output directory.
-                check(listOf("recording.log", "debug.log", "sessions").map {
+                check(listOf("recording.log", "sessions").map {
                     output.toPath().resolve(it).toFile()
                 }.all { it.exists() }, {
                     "Directory doesn't look like an output directory, so not overwriting. Please delete it manually."
@@ -399,15 +413,19 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
 
         output.mkdirs()
         output.toPath().resolve("sessions").toFile().mkdir()
+        output.toPath().resolve("shinycannon-version.txt").toFile().writeText(getVersion())
 
         // This appender prints DEBUG and above to debug.log and is added to the
         // global logger.
-        val debugAppender = FileAppender()
-        debugAppender.layout = PatternLayout(logPattern)
-        debugAppender.threshold = Level.DEBUG
-        debugAppender.file = output.toPath().resolve("debug.log").toString()
-        debugAppender.activateOptions()
-        Logger.getRootLogger().addAppender(debugAppender)
+        var debugAppender: Appender? = null
+        if (debugLog) {
+            debugAppender = FileAppender()
+            debugAppender.layout = PatternLayout(logPattern)
+            debugAppender.threshold = Level.DEBUG
+            debugAppender.file = output.toPath().resolve("debug.log").toString()
+            debugAppender.activateOptions()
+            Logger.getRootLogger().addAppender(debugAppender)
+        }
 
         // This appender prints WARN and ERROR (by default) to the console and
         // is added to the global logger.
@@ -425,7 +443,7 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         appAppender.activateOptions()
         val appLogger = Logger.getLogger("shinycannon").apply {
             addAppender(appAppender)
-            addAppender(debugAppender)
+            debugAppender?.let { addAppender(it) }
             additivity = false
         }
 
