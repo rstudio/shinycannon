@@ -344,7 +344,11 @@ class Args(parser: ArgParser) {
     val loadedDurationMinutes by parser.storing("Number of minutes to continue simulating sessions in each worker after all workers have completed one session. Can be fractional. Default is 0.") { toBigDecimal() }
             .default(BigDecimal.ZERO)
     val outputDir by parser.storing("Path to directory to store session logs in for this test run.")
-            .default("test-logs-${Instant.now()}")
+            .default(Instant.now().let {
+                // : is illegal in Windows filenames
+                val inst = it.toString().replace(":", "_")
+                "test-logs-${inst}"
+            })
     val overwriteOutput by parser.flagging("Delete the output directory before starting, if it exists already.")
     val debugLog by parser.flagging("Produce a debug.log in the output directory. File can get very large. Defaults to false.")
     val startInterval by parser.storing("Number of milliseconds to wait between starting workers. Defaults to the length of the recording divided by the number of workers.") {
