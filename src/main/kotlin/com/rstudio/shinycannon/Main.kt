@@ -377,6 +377,8 @@ fun getVersion() = Thread.currentThread()
         .contextClassLoader
         .getResource("shinycannon-version.txt")?.readText() ?: "development"
 
+fun getUserAgent() = "shinycannon/${getVersion()}"
+
 fun main(args: Array<String>) = mainBody("shinycannon") {
 
     Args(ArgParser(args, helpFormatter = DefaultHelpFormatter(
