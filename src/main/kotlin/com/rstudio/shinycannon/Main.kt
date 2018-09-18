@@ -328,6 +328,8 @@ class EnduranceTest(val args: Sequence<String>,
         finishedCountdown.await()
         keepShowingStats.set(false)
         // TODO make the stats thing update in place, and look cool too maybe?
+        
+        logger.info("Complete. Failed: ${stats.stats[Stats.State.FAIL]}, Done: ${stats.stats[Stats.State.DONE]}")
 
         // Workaround until https://github.com/TakahikoKawasaki/nv-websocket-client/pull/169 is merged or otherwise fixed.
         // Timers in the websocket code hold up the JVM, so we must explicity terminate.
@@ -395,7 +397,10 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         Thread.currentThread().name = "thread00"
 
         val recording = File(recordingPath)
-        check(recording.isFile && recording.exists())
+
+        if (!(recording.exists() && recording.isFile)) {
+            error("recording '${recording}' doesn't exist or is not a file")
+        }
 
         // If a startInterval was supplied, then use it. Otherwise, compute
         // based on the length of the recording and the number of workers.
