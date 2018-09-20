@@ -9,7 +9,15 @@ import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
 import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.impl.client.BasicCookieStore
-import org.apache.log4j.*
+import org.apache.logging.log4j.Level
+import org.apache.logging.log4j.LogManager
+import org.apache.logging.log4j.Logger
+import org.apache.logging.log4j.core.Appender
+import org.apache.logging.log4j.core.LoggerContext
+import org.apache.logging.log4j.core.appender.ConsoleAppender
+import org.apache.logging.log4j.core.appender.FileAppender
+import org.apache.logging.log4j.core.filter.ThresholdFilter
+import org.apache.logging.log4j.core.layout.PatternLayout
 import java.io.File
 import java.io.PrintWriter
 import java.lang.Exception
@@ -361,12 +369,11 @@ class Args(parser: ArgParser) {
     }.default(Level.WARN)
 }
 
-val logPattern = "%d{yyyy-MM-dd HH:mm:ss.SSS} %p [%t] - %m%n"
+// Unlimited log message length for debug log only
+val debugLogPattern = "%d{yyyy-MM-dd HH:mm:ss.SSS} %p [%t] - %m%n"
 
-class TersePatternLayout(pattern: String = logPattern): PatternLayout(pattern) {
-    // Keeps the log message to one line by suppressing stacktrace
-    override fun ignoresThrowable() = false
-}
+// Limits log messages to 50 characters for console log
+val consoleLogPattern = "%d{yyyy-MM-dd HH:mm:ss.SSS} %p [%t] - %.-50m%n %throwable{0}%n"
 
 fun recordingDuration(recording: File): Long {
     val events = readRecording(recording)
@@ -426,46 +433,71 @@ fun main(args: Array<String>) = mainBody("shinycannon") {
         output.toPath().resolve("sessions").toFile().mkdir()
         output.toPath().resolve("shinycannon-version.txt").toFile().writeText(getVersion())
 
+        // Copy the recording file to the output directory so runs are easily reproducible.
+        recording.copyTo(output.toPath().resolve("recording.log").toFile())
+
         // This appender prints DEBUG and above to debug.log and is added to the
         // global logger.
         var debugAppender: Appender? = null
         if (debugLog) {
-            debugAppender = FileAppender()
-            debugAppender.layout = PatternLayout(logPattern)
-            debugAppender.threshold = Level.DEBUG
-            debugAppender.file = output.toPath().resolve("debug.log").toString()
-            debugAppender.activateOptions()
-            Logger.getRootLogger().addAppender(debugAppender)
+            val debugAppender = (FileAppender::class.java.getMethod("newBuilder").invoke(null) as FileAppender.Builder<*>)
+                    .withLayout(PatternLayout.newBuilder().withPattern(debugLogPattern).build())
+                    .withFileName(output.toPath().resolve("debug.log").toString())
+                    .withFilter(ThresholdFilter.createFilter(Level.DEBUG, null, null))
+                    .withName("debugAppender")
+                    .build()
+            debugAppender.start()
+            (LogManager.getContext(false) as LoggerContext).configuration.apply { ->
+                val root = LogManager.getRootLogger() as org.apache.logging.log4j.core.Logger
+                addLoggerAppender(root, debugAppender)
+            }
         }
 
         // This appender prints WARN and ERROR (by default) to the console and
         // is added to the global logger.
-        val libraryAppender = ConsoleAppender()
-        libraryAppender.layout = TersePatternLayout()
-        libraryAppender.threshold = logLevel
-        libraryAppender.activateOptions()
-        Logger.getRootLogger().addAppender(libraryAppender)
+        val libraryAppender = (ConsoleAppender::class.java.getMethod("newBuilder").invoke(null) as ConsoleAppender.Builder<*>)
+                .withLayout(PatternLayout.newBuilder().withPattern(consoleLogPattern).build())
+                .withFilter(ThresholdFilter.createFilter(logLevel, null, null))
+                .withName("libraryAppender")
+                .build()
+        libraryAppender.start()
+        (LogManager.getContext(false) as LoggerContext).configuration.apply { ->
+            val root = LogManager.getRootLogger() as org.apache.logging.log4j.core.Logger
+            addLoggerAppender(root, libraryAppender)
+        }
 
         // This logger prints every application-level INFO or higher to the
         // console. All messages are also written to debug.log via debugAppender.
-        val appAppender = ConsoleAppender()
-        appAppender.layout = TersePatternLayout()
-        appAppender.threshold = Level.INFO
-        appAppender.activateOptions()
-        val appLogger = Logger.getLogger("shinycannon").apply {
-            addAppender(appAppender)
-            debugAppender?.let { addAppender(it) }
-            additivity = false
+        val appAppender = (ConsoleAppender::class.java.getMethod("newBuilder").invoke(null) as ConsoleAppender.Builder<*>)
+                .withLayout(PatternLayout.newBuilder().withPattern(consoleLogPattern).build())
+                .withFilter(ThresholdFilter.createFilter(Level.INFO, null, null))
+                .withName("appAppender")
+                .build()
+        val appLogger = LogManager.getLogger("shinycannon") as org.apache.logging.log4j.core.Logger
+        (LogManager.getContext(false) as LoggerContext).configuration.apply {
+            addLoggerAppender(appLogger, appAppender)
+            debugAppender?.let { addLoggerAppender(appLogger, it) }
+            setLoggerAdditive(appLogger, false)
         }
+
+        //(LogManager.getContext(false) as LoggerContext).reconfigure()
+
+/*        val appLogger = LogManager.getLogger("shinycannon").apply {
+            (LogManager.getContext(false) as LoggerContext).configuration.let { cfg ->
+                LogManager.getL
+            }
+        }*/
+//        val appLogger = Logger.getLogger("shinycannon").apply {
+//            addAppender(appAppender)
+//            debugAppender?.let { addAppender(it) }
+//            additivity = false
+//        }
 
         // Set global JVM exception handler before creating any new threads
         // https://stuartsierra.com/2015/05/27/clojure-uncaught-exceptions
         Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
             appLogger.error("Uncaught exception on ${thread.name}", exception)
         }
-
-        // Copy the recording file to the output directory so runs are easily reproducible.
-        recording.copyTo(output.toPath().resolve("recording.log").toFile())
 
         val loadTest = EnduranceTest(
                 // Drop the original logpath from the arglist
