@@ -384,7 +384,7 @@ class ArgsSerializer(): JsonSerializer<Args> {
         args.javaClass.kotlin.declaredMemberProperties.forEach {
             when (it.returnType.toString()) {
                 "kotlin.String",
-                "org.apache.log4j.Level!" -> jsonObject.addProperty(it.name, it.get(args).toString())
+                "org.apache.logging.log4j.Level!" -> jsonObject.addProperty(it.name, it.get(args).toString())
                 "kotlin.Boolean" -> jsonObject.addProperty(it.name, it.get(args) as Boolean)
                 "kotlin.Long?" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Long?)
                 "kotlin.Int?" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Int?)
