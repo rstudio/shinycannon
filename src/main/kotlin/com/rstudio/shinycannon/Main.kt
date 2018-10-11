@@ -32,7 +32,6 @@ import java.nio.file.Paths
 import java.security.SecureRandom
 import org.joda.time.Instant
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -229,28 +228,34 @@ fun PrintWriter.printCsv(vararg columns: Any) {
 class Stats() {
     enum class Transition { RUNNING, FAILED, DONE }
 
-    var run = 0
-    var done = 0
-    var fail = 0
+    private var run = 0
+    private var done = 0
+    private var fail = 0
 
+    data class StatCounts(val run: Int, val done: Int, val fail: Int)
+
+    @Synchronized
     fun transition(t: Transition) {
-        synchronized(this) {
-            when (t) {
-                Transition.RUNNING -> run++
-                Transition.DONE -> {
-                    done++
-                    run--
-                }
-                Transition.FAILED -> {
-                    fail++
-                    run--
-                }
+        when (t) {
+            Transition.RUNNING -> run++
+            Transition.DONE -> {
+                done++
+                run--
+            }
+            Transition.FAILED -> {
+                fail++
+                run--
             }
         }
     }
 
+    @Synchronized
+    fun getCounts() = StatCounts(run, done, fail)
+
     override fun toString(): String {
-        return "Running: ${run}, Failed: ${fail}, Done: ${done}"
+        getCounts().let {
+            return "Running: ${it.run}, Failed: ${it.fail}, Done: ${it.done}"
+        }
     }
 }
 
@@ -344,8 +349,10 @@ class EnduranceTest(val argsStr: String,
         finishedCountdown.await()
         keepShowingStats.set(false)
         // TODO make the stats thing update in place, and look cool too maybe?
-        
-        logger.info("Complete. Failed: ${stats.fail}, Done: ${stats.done}")
+
+        stats.getCounts().let {
+            logger.info("Complete. Failed: ${it.fail}, Done: ${it.done}")
+        }
 
         // Workaround until https://github.com/TakahikoKawasaki/nv-websocket-client/pull/169 is merged or otherwise fixed.
         // Timers in the websocket code hold up the JVM, so we must explicity terminate.
