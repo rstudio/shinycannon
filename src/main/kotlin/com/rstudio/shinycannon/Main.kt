@@ -227,31 +227,30 @@ fun PrintWriter.printCsv(vararg columns: Any) {
 }
 
 class Stats() {
-    enum class State { RUN, DONE, FAIL }
     enum class Transition { RUNNING, FAILED, DONE }
 
-    val stats = ConcurrentHashMap(mapOf(
-            State.RUN to 0,
-            State.DONE to 0,
-            State.FAIL to 0
-    ))
+    var run = 0
+    var done = 0
+    var fail = 0
 
     fun transition(t: Transition) {
-        stats.replaceAll { k, v ->
-            when (Pair(t, k)) {
-                Pair(Transition.RUNNING, State.RUN) -> v + 1
-                Pair(Transition.DONE, State.RUN) -> v - 1
-                Pair(Transition.DONE, State.DONE) -> v + 1
-                Pair(Transition.FAILED, State.RUN) -> v - 1
-                Pair(Transition.FAILED, State.FAIL) -> v + 1
-                else -> v
+        synchronized(this) {
+            when (t) {
+                Transition.RUNNING -> run++
+                Transition.DONE -> {
+                    done++
+                    run--
+                }
+                Transition.FAILED -> {
+                    fail++
+                    run--
+                }
             }
         }
     }
 
     override fun toString(): String {
-        val copy = stats.toMap()
-        return "Running: ${copy[State.RUN]}, Failed: ${copy[State.FAIL]}, Done: ${copy[State.DONE]}"
+        return "Running: ${run}, Failed: ${fail}, Done: ${done}"
     }
 }
 
@@ -346,7 +345,7 @@ class EnduranceTest(val argsStr: String,
         keepShowingStats.set(false)
         // TODO make the stats thing update in place, and look cool too maybe?
         
-        logger.info("Complete. Failed: ${stats.stats[Stats.State.FAIL]}, Done: ${stats.stats[Stats.State.DONE]}")
+        logger.info("Complete. Failed: ${stats.fail}, Done: ${stats.done}")
 
         // Workaround until https://github.com/TakahikoKawasaki/nv-websocket-client/pull/169 is merged or otherwise fixed.
         // Timers in the websocket code hold up the JVM, so we must explicity terminate.
