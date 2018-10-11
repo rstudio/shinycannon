@@ -17,7 +17,7 @@
       </configuration>
     </facet>
   </component>
-  <component name="NewModuleRootManager" LANGUAGE_LEVEL="JDK_1_5">
+  <component name="NewModuleRootManager" LANGUAGE_LEVEL="JDK_1_7">
     <output url="file://$MODULE_DIR$/target/classes" />
     <output-test url="file://$MODULE_DIR$/target/test-classes" />
     <content url="file://$MODULE_DIR$">
@@ -27,7 +27,7 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="Maven: org.jetbrains.kotlin:kotlin-reflect:1.2.60" level="project" />
+    <orderEntry type="library" name="Maven: org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.2.60" level="project" />
     <orderEntry type="library" name="Maven: org.jetbrains.kotlin:kotlin-stdlib:1.2.60" level="project" />
     <orderEntry type="library" name="Maven: org.jetbrains.kotlin:kotlin-stdlib-common:1.2.60" level="project" />
     <orderEntry type="library" name="Maven: org.jetbrains:annotations:13.0" level="project" />
@@ -44,15 +44,16 @@
     <orderEntry type="library" name="Maven: com.google.code.gson:gson:2.8.2" level="project" />
     <orderEntry type="library" name="Maven: com.xenomachina:kotlin-argparser:2.0.3" level="project" />
     <orderEntry type="library" scope="RUNTIME" name="Maven: com.xenomachina:xenocom:0.0.5" level="project" />
-    <orderEntry type="library" name="Maven: org.apache.logging.log4j:log4j-api:2.11.1" level="project" />
-    <orderEntry type="library" name="Maven: org.apache.logging.log4j:log4j-core:2.11.1" level="project" />
+    <orderEntry type="library" name="Maven: org.apache.logging.log4j:log4j-api:2.8.2" level="project" />
+    <orderEntry type="library" name="Maven: org.apache.logging.log4j:log4j-core:2.8.2" level="project" />
     <orderEntry type="library" name="Maven: org.slf4j:slf4j-api:1.7.25" level="project" />
     <orderEntry type="library" name="Maven: org.slf4j:jcl-over-slf4j:1.7.25" level="project" />
-    <orderEntry type="library" name="Maven: org.apache.logging.log4j:log4j-slf4j-impl:2.11.1" level="project" />
+    <orderEntry type="library" name="Maven: org.apache.logging.log4j:log4j-slf4j-impl:2.8.2" level="project" />
     <orderEntry type="library" name="Maven: com.neovisionaries:nv-websocket-client:2.5" level="project" />
     <orderEntry type="library" name="Maven: net.moznion:uribuilder-tiny:2.7.1" level="project" />
     <orderEntry type="library" name="Maven: org.apache.httpcomponents:httpclient:4.5.6" level="project" />
     <orderEntry type="library" name="Maven: org.apache.httpcomponents:httpcore:4.4.10" level="project" />
     <orderEntry type="library" name="Maven: commons-codec:commons-codec:1.10" level="project" />
+    <orderEntry type="library" name="Maven: joda-time:joda-time:2.10" level="project" />
   </component>
 </module>

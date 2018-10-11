@@ -30,7 +30,7 @@ import java.lang.reflect.Type
 import java.math.BigDecimal
 import java.nio.file.Paths
 import java.security.SecureRandom
-import java.time.Instant
+import org.joda.time.Instant
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -219,7 +219,7 @@ class ShinySession(val sessionId: Int,
     }
 }
 
-fun nowMs() = Instant.now().toEpochMilli()
+fun nowMs() = Instant.now().millis
 
 fun PrintWriter.printCsv(vararg columns: Any) {
     this.println(columns.joinToString(","))

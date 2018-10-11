@@ -12,7 +12,7 @@ import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.util.EntityUtils
 import java.io.PrintWriter
 import java.nio.file.FileSystems
-import java.time.Instant
+import org.joda.time.Instant
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
@@ -63,7 +63,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
 
     abstract fun handle(session: ShinySession, out: PrintWriter)
 
-    fun name() = this::class.java.typeName.split("$").last()
+    // Here we use Class.toString instead of Class.getTypeName in order to work on Java 7.
+    fun name() = this::class.java.toString().split("$").last()
 
     fun withLog(session: ShinySession, out: PrintWriter, body: () -> Unit) {
         out.printCsv(session.sessionId, session.workerId, session.iterationId, "${name()}_START", nowMs(), lineNumber, "")
@@ -72,7 +73,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
     }
 
     companion object {
-        private fun parseInstant(str: String) = Instant.parse(str).toEpochMilli()
+        private fun parseInstant(str: String) = Instant.parse(str).millis
 
         fun fromLine(lineNumber: Int, line: String): Event {
             val obj = JsonParser().parse(line).asJsonObject
