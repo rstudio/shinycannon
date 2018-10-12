@@ -21,9 +21,8 @@ import java.lang.reflect.Type
 import java.math.BigDecimal
 import java.nio.file.Paths
 import java.security.SecureRandom
-import java.time.Instant
+import org.joda.time.Instant
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -210,7 +209,7 @@ class ShinySession(val sessionId: Int,
     }
 }
 
-fun nowMs() = Instant.now().toEpochMilli()
+fun nowMs() = Instant.now().millis
 
 fun PrintWriter.printCsv(vararg columns: Any) {
     this.println(columns.joinToString(","))
@@ -218,31 +217,36 @@ fun PrintWriter.printCsv(vararg columns: Any) {
 }
 
 class Stats() {
-    enum class State { RUN, DONE, FAIL }
     enum class Transition { RUNNING, FAILED, DONE }
 
-    val stats = ConcurrentHashMap(mapOf(
-            State.RUN to 0,
-            State.DONE to 0,
-            State.FAIL to 0
-    ))
+    private var run = 0
+    private var done = 0
+    private var fail = 0
 
+    data class StatCounts(val run: Int, val done: Int, val fail: Int)
+
+    @Synchronized
     fun transition(t: Transition) {
-        stats.replaceAll { k, v ->
-            when (Pair(t, k)) {
-                Pair(Transition.RUNNING, State.RUN) -> v + 1
-                Pair(Transition.DONE, State.RUN) -> v - 1
-                Pair(Transition.DONE, State.DONE) -> v + 1
-                Pair(Transition.FAILED, State.RUN) -> v - 1
-                Pair(Transition.FAILED, State.FAIL) -> v + 1
-                else -> v
+        when (t) {
+            Transition.RUNNING -> run++
+            Transition.DONE -> {
+                done++
+                run--
+            }
+            Transition.FAILED -> {
+                fail++
+                run--
             }
         }
     }
 
+    @Synchronized
+    fun getCounts() = StatCounts(run, done, fail)
+
     override fun toString(): String {
-        val copy = stats.toMap()
-        return "Running: ${copy[State.RUN]}, Failed: ${copy[State.FAIL]}, Done: ${copy[State.DONE]}"
+        getCounts().let {
+            return "Running: ${it.run}, Failed: ${it.fail}, Done: ${it.done}"
+        }
     }
 }
 
@@ -336,8 +340,10 @@ class EnduranceTest(val argsStr: String,
         finishedCountdown.await()
         keepShowingStats.set(false)
         // TODO make the stats thing update in place, and look cool too maybe?
-        
-        logger.info("Complete. Failed: ${stats.stats[Stats.State.FAIL]}, Done: ${stats.stats[Stats.State.DONE]}")
+
+        stats.getCounts().let {
+            logger.info("Complete. Failed: ${it.fail}, Done: ${it.done}")
+        }
 
         // Workaround until https://github.com/TakahikoKawasaki/nv-websocket-client/pull/169 is merged or otherwise fixed.
         // Timers in the websocket code hold up the JVM, so we must explicity terminate.
