@@ -42,7 +42,7 @@ $(MANDIR)/shinycannon.1: shinycannon.1.ronn
 	cat $< |ronn -r --manual="SHINYCANNON MANUAL" --pipe > $@
 
 $(RPM_FILE): $(BINDIR)/shinycannon $(MANDIR)/shinycannon.1
-	fpm -t rpm -d 'java >= 1.7.0' $(FPM_ARGS)
+	fpm -t rpm -d 'java >= 0:1.7.0' $(FPM_ARGS)
 
 # Install with 'apt update && apt install ./shinycannon_*.deb'
 $(DEB_FILE): $(BINDIR)/shinycannon $(MANDIR)/shinycannon.1
