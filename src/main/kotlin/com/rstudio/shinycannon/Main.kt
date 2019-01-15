@@ -357,8 +357,8 @@ class Args(parser: ArgParser) {
     val appUrl by parser.positional("URL of the Shiny application to interact with")
     val workers by parser.storing("Number of workers to simulate. Default is 1.") { toInt() }
             .default(1)
-    val loadedDurationMinutes by parser.storing("Number of minutes to continue simulating sessions in each worker after all workers have completed one session. Can be fractional. Default is 0.") { toBigDecimal() }
-            .default(BigDecimal.ZERO)
+    val loadedDurationMinutes by parser.storing("Number of minutes to continue simulating sessions in each worker after all workers have completed one session. Can be fractional. Default is 5.") { toBigDecimal() }
+            .default(BigDecimal(5))
     val outputDir by parser.storing("Path to directory to store session logs in for this test run.")
             .default(Instant.now().let {
                 // : is illegal in Windows filenames
@@ -387,7 +387,7 @@ class ArgsSerializer(): JsonSerializer<Args> {
                 "kotlin.Int?" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Int?)
                 "kotlin.Long" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Long)
                 "kotlin.Int" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Int)
-                "java.math.BigDecimal!" -> jsonObject.addProperty(it.name, (it.get(args) as BigDecimal).toFloat())
+                "java.math.BigDecimal!", "java.math.BigDecimal" -> jsonObject.addProperty(it.name, (it.get(args) as BigDecimal).toFloat())
                 else -> error("Don't know how to JSON-serialize argument type: ${it.returnType}")
             }
         }
