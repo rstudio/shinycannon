@@ -465,7 +465,9 @@ fun initLogging(debugLog: Boolean, debugLogFile: String, logLevel: Level): Logge
     return LogManager.getLogger("shinycannon")
 }
 
-fun main(args: Array<String>) = mainBody("shinycannon") {
+fun main(userArgs: Array<String>) = mainBody("shinycannon") {
+
+    val args = if (userArgs.size == 0) arrayOf("-h") else userArgs
 
     Args(ArgParser(args, helpFormatter = DefaultHelpFormatter(
             prologue = """
