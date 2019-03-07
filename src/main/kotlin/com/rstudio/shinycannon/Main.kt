@@ -465,10 +465,21 @@ fun initLogging(debugLog: Boolean, debugLogFile: String, logLevel: Level): Logge
     return LogManager.getLogger("shinycannon")
 }
 
-fun main(args: Array<String>) = mainBody("shinycannon") {
+fun main(userArgs: Array<String>) = mainBody("shinycannon") {
+
+    val args = if (userArgs.size == 0) arrayOf("-h") else userArgs
 
     Args(ArgParser(args, helpFormatter = DefaultHelpFormatter(
-            prologue = "shinycannon is a load generation tool for use with Shiny Server Pro and RStudio Connect.",
+            prologue = """
+                shinycannon is a load generation tool for use with Shiny Server Pro and RStudio Connect.
+
+                Provided a recording file (made with the shinyloadtest package and typically named recording.log), and the URL of a deployed application, shinycannon will "play back" the recording against the application, simulating one or more users interacting with the application over a configurable amount of time.
+
+                For example, to simulate 3 users interacting with the application for no less than 10 minutes, the following command could be used:
+
+                shinycannon recording.log https://rsc.example.com/content/123 --workers 3 --loaded-duration-minutes 10
+
+            """.trimIndent(),
             epilogue = """
                 environment variables:
                   SHINYCANNON_USER
