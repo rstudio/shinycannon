@@ -11,7 +11,7 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
 # Install FPM (for building packages) and ronn (for making manpages)
-RUN gem install --no-ri --no-rdoc fpm:1.9.3 ronn:0.7.3
+RUN gem install --no-ri --no-rdoc fpm:1.11.0 ronn:0.7.3
 
 ARG JENKINS_GID=999
 ARG JENKINS_UID=999
