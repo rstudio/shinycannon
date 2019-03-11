@@ -77,6 +77,7 @@ fun servedBy(resp: HttpResponse): AppServer {
         headers["X-Powered-By"] == "Shiny Server Pro" -> AppServer.SSP
         headers.containsKey("rscid") -> AppServer.RSC
         headers["Server"]?.startsWith("RStudio Connect") ?: false -> AppServer.RSC
+        resp.cookies.cookies.any { it.name == "rscid" } -> AppServer.RSC
         else -> AppServer.UNKNOWN
     }
 }
@@ -97,16 +98,7 @@ fun getInputs(resp: HttpResponse, server: AppServer): Map<String, String> {
 
 fun loginUrlFor(appUrl: String, server: AppServer): String {
     return when (server) {
-        AppServer.RSC -> URL(appUrl).let { url ->
-            URIBuilderTiny()
-                    .setScheme(url.protocol)
-                    .setHost(url.host)
-                    .setPort(url.port)
-                    .appendPaths("__login__")
-                    .build()
-                    .toString()
-        }
-        AppServer.SSP -> URIBuilderTiny(appUrl)
+        AppServer.SSP, AppServer.RSC -> URIBuilderTiny(appUrl)
                 .appendPaths("__login__")
                 .build()
                 .toString()
