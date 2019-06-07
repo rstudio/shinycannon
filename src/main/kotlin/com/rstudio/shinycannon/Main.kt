@@ -33,14 +33,20 @@ import kotlin.concurrent.thread
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.system.exitProcess
 
-fun readRecording(recording: File): ArrayList<Event> {
-    return recording.readLines()
+data class Recording(val props: Map<String, String>, val eventLog: ArrayList<Event>)
+
+fun readRecording(recording: File): Recording {
+    val eventLog: ArrayList<Event> = recording.readLines()
             .asSequence()
             .mapIndexed { idx, line -> Pair(idx + 1, line) }
             .filterNot { it.second.startsWith("#") }
             .fold(ArrayList()) { events, (lineNumber, line) ->
                 events.also { it.add(Event.fromLine(lineNumber, line)) }
             }
+    return Recording(
+            mapOf(),
+            eventLog
+    )
 }
 
 fun randomHexString(numchars: Int): String {
@@ -275,7 +281,7 @@ class EnduranceTest(val argsStr: String,
     val stats = Stats()
 
     fun run() {
-        val log = readRecording(recording)
+        val log = readRecording(recording).eventLog
         check(log.size > 0) { "input log must not be empty" }
         check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
 
@@ -345,8 +351,8 @@ class EnduranceTest(val argsStr: String,
             logger.info("Complete. Failed: ${it.fail}, Done: ${it.done}")
         }
 
-        // Workaround until https://github.com/TakahikoKawasaki/nv-websocket-client/pull/169 is merged or otherwise fixed.
-        // Timers in the websocket code hold up the JVM, so we must explicity terminate.
+        // Workaround until https://github.com/TakahikoKawasaki/nv-websocket-client/issues/140 is fixed.
+        // Timers in the websocket code hold up the JVM, so we must explicitly terminate.
         exitProcess(0);
     }
 
@@ -396,7 +402,7 @@ class ArgsSerializer(): JsonSerializer<Args> {
 }
 
 fun recordingDuration(recording: File): Long {
-    val events = readRecording(recording)
+    val events = readRecording(recording).eventLog
     return events.last().begin - events.first().begin
 }
 
