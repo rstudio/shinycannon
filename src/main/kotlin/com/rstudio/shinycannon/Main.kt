@@ -35,18 +35,33 @@ import kotlin.system.exitProcess
 
 data class Recording(val props: Map<String, String>, val eventLog: ArrayList<Event>)
 
+fun readPropLine(line: String): Pair<String, String> {
+    val re = Pattern.compile("""^# (\w+): (.*)$""")
+    val matcher = re.matcher(line)
+    if (matcher.find()) {
+        return Pair(matcher.group(1), matcher.group(2))
+    } else {
+        throw RuntimeException("Malformed prop line in recording: ${line}")
+    }
+}
+
+fun readProps(lines: List<String>): Map<String, String> {
+    return lines.asSequence()
+            .takeWhile { it.startsWith("#") }
+            .map { readPropLine(it) }
+            .toMap()
+}
+
 fun readRecording(recording: File): Recording {
-    val eventLog: ArrayList<Event> = recording.readLines()
-            .asSequence()
+    val lines = recording.readLines()
+    val props = readProps(lines)
+    val eventLog = lines
             .mapIndexed { idx, line -> Pair(idx + 1, line) }
             .filterNot { it.second.startsWith("#") }
-            .fold(ArrayList()) { events, (lineNumber, line) ->
+            .fold(ArrayList<Event>()) { events, (lineNumber, line) ->
                 events.also { it.add(Event.fromLine(lineNumber, line)) }
             }
-    return Recording(
-            mapOf(),
-            eventLog
-    )
+    return Recording(props, eventLog)
 }
 
 fun randomHexString(numchars: Int): String {
@@ -281,7 +296,9 @@ class EnduranceTest(val argsStr: String,
     val stats = Stats()
 
     fun run() {
-        val log = readRecording(recording).eventLog
+        val rec = readRecording(recording)
+        val log = rec.eventLog
+
         check(log.size > 0) { "input log must not be empty" }
         check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
 
