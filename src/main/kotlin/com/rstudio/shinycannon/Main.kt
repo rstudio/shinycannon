@@ -33,6 +33,9 @@ import kotlin.concurrent.thread
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.system.exitProcess
 
+// TODO use this instead of string map for parsed props
+data class Props(val version: String, val targetUrl: String, val targetType: ServerType)
+
 data class Recording(val props: Map<String, String>, val eventLog: ArrayList<Event>)
 
 fun readPropLine(line: String): Pair<String, String> {
@@ -298,6 +301,9 @@ class EnduranceTest(val argsStr: String,
     fun run() {
         val rec = readRecording(recording)
         val log = rec.eventLog
+
+        println(servedBy(rec.props["target_url"]!!))
+        exitProcess(0)
 
         check(log.size > 0) { "input log must not be empty" }
         check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
