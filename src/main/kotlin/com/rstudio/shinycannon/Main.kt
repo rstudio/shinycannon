@@ -33,10 +33,9 @@ import kotlin.concurrent.thread
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.system.exitProcess
 
-// TODO use this instead of string map for parsed props
 data class Props(val version: String, val targetUrl: String, val targetType: ServerType)
 
-data class Recording(val props: Map<String, String>, val eventLog: ArrayList<Event>)
+data class Recording(val props: Props, val eventLog: ArrayList<Event>)
 
 fun readPropLine(line: String): Pair<String, String> {
     val re = Pattern.compile("""^# (\w+): (.*)$""")
@@ -48,11 +47,12 @@ fun readPropLine(line: String): Pair<String, String> {
     }
 }
 
-fun readProps(lines: List<String>): Map<String, String> {
-    return lines.asSequence()
+fun readProps(lines: List<String>): Props {
+    val props = lines.asSequence()
             .takeWhile { it.startsWith("#") }
             .map { readPropLine(it) }
             .toMap()
+    return Props(props["version"]!!, props["target_url"]!!, typeFromName(props["target_type"]!!))
 }
 
 fun readRecording(recording: File): Recording {
@@ -302,7 +302,7 @@ class EnduranceTest(val argsStr: String,
         val rec = readRecording(recording)
         val log = rec.eventLog
 
-        println(servedBy(rec.props["target_url"]!!))
+        println(servedBy(rec.props.targetUrl).typeName)
         exitProcess(0)
 
         check(log.size > 0) { "input log must not be empty" }
