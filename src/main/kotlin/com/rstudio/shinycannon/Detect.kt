@@ -38,21 +38,13 @@ fun servedBy(appUrl: String): ServerType {
         return ServerType.RSC
     }
 
-    val scripts = xpath(resp.body, "/html/head/script")
+    val shinyJsNode = xpath(resp.body, "/html/head/script")
+            .flatMap { List(it.attributes.length, { i -> it.attributes.item(i)}) }
+            .filter { it.nodeName == "src" }
+            .find { it.nodeValue.matches("^.*/shiny.min.js$".toRegex()) }
 
-    scripts.forEach {
-        println(it.toString())
-    }
-    
-    val hasShinyJS = scripts.map {
-        it.attributes.get("src")
-    }.firstOrNull {
-        it.matches("^.*/shiny.min.js$".toRegex())
-    } != null
-
-    if (hasShinyJS) {
-        return ServerType.SHN
-    } else {
+    if (shinyJsNode == null)
         error("Target URL ${appUrl} does not appear to be a Shiny application.")
-    }
+
+    return ServerType.SHN
 }

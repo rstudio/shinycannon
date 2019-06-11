@@ -47,17 +47,23 @@ fun readPropLine(line: String): Pair<String, String> {
     }
 }
 
-fun readProps(lines: List<String>): Props {
+fun readProps(lines: List<String>, logger: Logger): Props {
     val props = lines.asSequence()
             .takeWhile { it.startsWith("#") }
             .map { readPropLine(it) }
             .toMap()
+    listOf("version", "target_url", "target_type").forEach {
+        if (!props.containsKey(it)) {
+            logger.error("Recording file is missing required property '${it}', you might need to upgrade shinyloadtest and make a new recording")
+            exitProcess(1)
+        }
+    }
     return Props(props["version"]!!, props["target_url"]!!, typeFromName(props["target_type"]!!))
 }
 
-fun readRecording(recording: File): Recording {
+fun readRecording(recording: File, logger: Logger): Recording {
     val lines = recording.readLines()
-    val props = readProps(lines)
+    val props = readProps(lines, logger)
     val eventLog = lines
             .mapIndexed { idx, line -> Pair(idx + 1, line) }
             .filterNot { it.second.startsWith("#") }
@@ -299,11 +305,15 @@ class EnduranceTest(val argsStr: String,
     val stats = Stats()
 
     fun run() {
-        val rec = readRecording(recording)
-        val log = rec.eventLog
+        val rec = readRecording(recording, logger)
 
-        println(servedBy(rec.props.targetUrl).typeName)
-        exitProcess(0)
+        val detectedType = servedBy(httpUrl)
+
+        if (detectedType != rec.props.targetType) {
+            logger.warn("Recording made with '${rec.props.targetType.typeName}' but target looks like '${detectedType.typeName}")
+        }
+
+        val log = rec.eventLog
 
         check(log.size > 0) { "input log must not be empty" }
         check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
@@ -376,7 +386,7 @@ class EnduranceTest(val argsStr: String,
 
         // Workaround until https://github.com/TakahikoKawasaki/nv-websocket-client/issues/140 is fixed.
         // Timers in the websocket code hold up the JVM, so we must explicitly terminate.
-        exitProcess(0);
+        exitProcess(0)
     }
 
 }
@@ -420,12 +430,12 @@ class ArgsSerializer(): JsonSerializer<Args> {
                 else -> error("Don't know how to JSON-serialize argument type: ${it.returnType}")
             }
         }
-        return jsonObject;
+        return jsonObject
     }
 }
 
-fun recordingDuration(recording: File): Long {
-    val events = readRecording(recording).eventLog
+fun recordingDuration(recording: File, logger: Logger): Long {
+    val events = readRecording(recording, logger).eventLog
     return events.last().begin - events.first().begin
 }
 
@@ -546,7 +556,7 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
 
         // If a startInterval was supplied, then use it. Otherwise, compute
         // based on the length of the recording and the number of workers.
-        val computedStartInterval = startInterval ?: recordingDuration(recording) / workers
+        val computedStartInterval = startInterval ?: recordingDuration(recording, appLogger) / workers
 
         output.mkdirs()
         output.toPath().resolve("sessions").toFile().mkdir()
