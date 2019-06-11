@@ -33,46 +33,6 @@ import kotlin.concurrent.thread
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.system.exitProcess
 
-data class Props(val version: String, val targetUrl: String, val targetType: ServerType)
-
-data class Recording(val props: Props, val eventLog: ArrayList<Event>)
-
-fun readPropLine(line: String): Pair<String, String> {
-    val re = Pattern.compile("""^# (\w+): (.*)$""")
-    val matcher = re.matcher(line)
-    if (matcher.find()) {
-        return Pair(matcher.group(1), matcher.group(2))
-    } else {
-        throw RuntimeException("Malformed prop line in recording: ${line}")
-    }
-}
-
-fun readProps(lines: List<String>, logger: Logger): Props {
-    val props = lines.asSequence()
-            .takeWhile { it.startsWith("#") }
-            .map { readPropLine(it) }
-            .toMap()
-    listOf("version", "target_url", "target_type").forEach {
-        if (!props.containsKey(it)) {
-            logger.error("Recording file is missing required property '${it}', you might need to upgrade shinyloadtest and make a new recording")
-            exitProcess(1)
-        }
-    }
-    return Props(props["version"]!!, props["target_url"]!!, typeFromName(props["target_type"]!!))
-}
-
-fun readRecording(recording: File, logger: Logger): Recording {
-    val lines = recording.readLines()
-    val props = readProps(lines, logger)
-    val eventLog = lines
-            .mapIndexed { idx, line -> Pair(idx + 1, line) }
-            .filterNot { it.second.startsWith("#") }
-            .fold(ArrayList<Event>()) { events, (lineNumber, line) ->
-                events.also { it.add(Event.fromLine(lineNumber, line)) }
-            }
-    return Recording(props, eventLog)
-}
-
 fun randomHexString(numchars: Int): String {
     val r = SecureRandom()
     val sb = StringBuffer()
@@ -286,6 +246,8 @@ fun getCreds() = listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
         ?.zipWithNext()
         ?.first()
 
+val RECORDING_VERSION = 1L
+
 class EnduranceTest(val argsStr: String,
                     val argsJson: String,
                     val httpUrl: String,
@@ -310,7 +272,14 @@ class EnduranceTest(val argsStr: String,
         val detectedType = servedBy(httpUrl)
 
         if (detectedType != rec.props.targetType) {
-            logger.warn("Recording made with '${rec.props.targetType.typeName}' but target looks like '${detectedType.typeName}")
+            logger.warn("Recording made with '${rec.props.targetType.typeName}' but target looks like '${detectedType.typeName}'")
+        }
+
+        if (rec.props.version < RECORDING_VERSION) {
+            logger.warn("Recording version ${rec.props.version} is older than what's supported by this version of shinycannon, you may consider upgrading shinyloadtest and making a new recording")
+        } else if (rec.props.version > RECORDING_VERSION) {
+            logger.error("Recording version ${rec.props.version} is newer than this version of shinycannon supports; please upgrade shinycannon")
+            exitProcess(1)
         }
 
         val log = rec.eventLog

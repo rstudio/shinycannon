@@ -16,7 +16,7 @@ fun typeFromName(typeName: String): ServerType {
         "Shiny Server or Shiny Server Pro" -> ServerType.SSP
         "shinyapps.io" -> ServerType.SAI
         "R/Shiny" -> ServerType.SHN
-        else -> error("Unknown server type name: ${typeName}")
+        else -> error("Unknown server type name in recording: ${typeName}")
     }
 }
 
