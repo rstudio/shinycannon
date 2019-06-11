@@ -19,7 +19,6 @@ import org.w3c.dom.NodeList
 import org.xml.sax.InputSource
 import java.io.ByteArrayOutputStream
 import java.io.StringReader
-import java.net.URL
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.xpath.XPathConstants
 import javax.xml.xpath.XPathFactory
@@ -63,30 +62,15 @@ fun xpath(docString: String, query: String): Array<Node> {
 // XML collection type produced by the XPath API.
 operator fun NamedNodeMap.get(itemName: String): String = this.getNamedItem(itemName).nodeValue
 
-enum class AppServer { RSC, SSP, UNKNOWN }
-
 fun isProtected(appUrl: String): Boolean {
     return setOf(403, 404).contains(slurp(HttpGet(appUrl)).statusCode)
 }
 
-fun servedBy(resp: HttpResponse): AppServer {
-    val headers = resp.headers
-    return when {
-    // TODO figure out why SSP-XSRF not served by 1.5.8.960
-        headers["X-Powered-By"] == "Express" -> AppServer.SSP
-        headers["X-Powered-By"] == "Shiny Server Pro" -> AppServer.SSP
-        headers.containsKey("rscid") -> AppServer.RSC
-        headers["Server"]?.startsWith("RStudio Connect") ?: false -> AppServer.RSC
-        resp.cookies.cookies.any { it.name == "rscid" } -> AppServer.RSC
-        else -> AppServer.UNKNOWN
-    }
-}
-
 // Returns a Map of hidden inputs that must be posted along with
 // username and password. The map is empty except for SSP.
-fun getInputs(resp: HttpResponse, server: AppServer): Map<String, String> {
+fun getInputs(resp: HttpResponse, server: ServerType): Map<String, String> {
     return when (server) {
-        AppServer.SSP -> {
+        ServerType.SSP -> {
             xpath(resp.body, "//input[@type='hidden']")
                     .map { it.attributes }
                     .map { attrs -> Pair(attrs["name"], attrs["value"]) }
@@ -96,13 +80,13 @@ fun getInputs(resp: HttpResponse, server: AppServer): Map<String, String> {
     }
 }
 
-fun loginUrlFor(appUrl: String, server: AppServer): String {
+fun loginUrlFor(appUrl: String, server: ServerType): String {
     return when (server) {
-        AppServer.SSP, AppServer.RSC -> URIBuilderTiny(appUrl)
+        ServerType.SSP, ServerType.RSC -> URIBuilderTiny(appUrl)
                 .appendPaths("__login__")
                 .build()
                 .toString()
-        else -> error("Don't know how to construct login URL for $server")
+        else -> error("Don't know how to construct login URL for server type '${server.typeName}")
     }
 }
 
@@ -168,14 +152,14 @@ fun loginSSP(context: AuthContext, username: String, password: String): BasicCoo
 fun postLogin(appUrl: String, username: String, password: String, cookies: BasicCookieStore): BasicCookieStore {
 
     val resp = slurp(HttpGet(appUrl), cookies = cookies)
-    val server = servedBy(resp)
+    val server = servedBy(appUrl)
     val inputs = getInputs(resp, server)
     val loginUrl = loginUrlFor(appUrl, server)
     val context = AuthContext(cookies, inputs, loginUrl)
 
     return when(server) {
-        AppServer.RSC -> loginRSC(context, username, password)
-        AppServer.SSP -> loginSSP(context, username, password)
-        AppServer.UNKNOWN -> error("Can't log in to unknown server type")
+        ServerType.RSC -> loginRSC(context, username, password)
+        ServerType.SSP -> loginSSP(context, username, password)
+        else -> error("Can't log in to server type: '${server.typeName}'")
     }
 }
