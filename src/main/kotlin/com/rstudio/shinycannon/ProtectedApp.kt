@@ -13,6 +13,7 @@ import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.BasicCookieStore
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.message.BasicNameValuePair
+import org.apache.logging.log4j.Logger
 import org.w3c.dom.NamedNodeMap
 import org.w3c.dom.Node
 import org.w3c.dom.NodeList
@@ -149,10 +150,10 @@ fun loginSSP(context: AuthContext, username: String, password: String): BasicCoo
     }
 }
 
-fun postLogin(appUrl: String, username: String, password: String, cookies: BasicCookieStore): BasicCookieStore {
+fun postLogin(appUrl: String, username: String, password: String, cookies: BasicCookieStore, logger: Logger): BasicCookieStore {
 
     val resp = slurp(HttpGet(appUrl), cookies = cookies)
-    val server = servedBy(appUrl)
+    val server = servedBy(appUrl, logger)
     val inputs = getInputs(resp, server)
     val loginUrl = loginUrlFor(appUrl, server)
     val context = AuthContext(cookies, inputs, loginUrl)

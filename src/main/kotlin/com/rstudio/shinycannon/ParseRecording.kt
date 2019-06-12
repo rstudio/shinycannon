@@ -24,16 +24,21 @@ fun readProps(lines: List<String>, logger: Logger): Props {
             .takeWhile { it.startsWith("#") }
             .map { readPropLine(it) }
             .toMap()
-    listOf("version", "target_url", "target_type").forEach {
-        if (!props.containsKey(it)) {
-            logger.error("Recording file is missing required property '${it}', you might need to upgrade shinyloadtest and make a new recording")
-            exitProcess(1)
+    if (props.containsKey("target")) {
+        logger.error("Recording is in an unsupported format. Please update shinyloadtest, make a new recording, and try again")
+        exitProcess(1)
+    } else {
+        listOf("version", "target_url", "target_type").forEach {
+            if (!props.containsKey(it)) {
+                logger.error("Recording file is missing required property '${it}', you might need to upgrade shinyloadtest and make a new recording")
+                exitProcess(1)
+            }
         }
+
+        val versionNum = props["version"]!!.toLong()
+
+        return Props(versionNum, props["target_url"]!!, typeFromName(props["target_type"]!!))
     }
-
-    val versionNum = props["version"]!!.toLong()
-
-    return Props(versionNum, props["target_url"]!!, typeFromName(props["target_type"]!!))
 }
 
 fun readRecording(recording: File, logger: Logger): Recording {
