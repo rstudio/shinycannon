@@ -2,6 +2,8 @@ package com.rstudio.shinycannon
 
 import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.client.methods.HttpGet
+import org.apache.logging.log4j.Logger
+import kotlin.system.exitProcess
 
 enum class ServerType(val typeName: String) {
     RSC("RStudio Server Connect"),
@@ -20,7 +22,7 @@ fun typeFromName(typeName: String): ServerType {
     }
 }
 
-fun servedBy(appUrl: String): ServerType {
+fun servedBy(appUrl: String, logger: Logger): ServerType {
     val url = URIBuilderTiny(appUrl)
 
     if (url.host.matches("^.*\\.shinyapps\\.io$".toRegex()))
@@ -38,13 +40,19 @@ fun servedBy(appUrl: String): ServerType {
         return ServerType.RSC
     }
 
-    val shinyJsNode = xpath(resp.body, "/html/head/script")
-            .flatMap { List(it.attributes.length, { i -> it.attributes.item(i)}) }
-            .filter { it.nodeName == "src" }
-            .find { it.nodeValue.matches("^.*/shiny.min.js$".toRegex()) }
+    val shinyJsNode = try {
+        xpath(resp.body, "/html/head/script")
+                .flatMap { List(it.attributes.length, { i -> it.attributes.item(i)}) }
+                .filter { it.nodeName == "src" }
+                .find { it.nodeValue.matches("^.*/shiny.min.js$".toRegex()) }
+    } catch (e: Exception) {
+        null
+    }
 
-    if (shinyJsNode == null)
-        error("Target URL ${appUrl} does not appear to be a Shiny application.")
+    if (shinyJsNode == null) {
+        logger.error("Target URL ${appUrl} does not appear to be a Shiny application.")
+        exitProcess(1)
+    }
 
     return ServerType.SHN
 }

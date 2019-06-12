@@ -269,7 +269,7 @@ class EnduranceTest(val argsStr: String,
     fun run() {
         val rec = readRecording(recording, logger)
 
-        val detectedType = servedBy(httpUrl)
+        val detectedType = servedBy(httpUrl, logger)
 
         if (detectedType != rec.props.targetType) {
             logger.warn("Recording made with '${rec.props.targetType.typeName}' but target looks like '${detectedType.typeName}'")
