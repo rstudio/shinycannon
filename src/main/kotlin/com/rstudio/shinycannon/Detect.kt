@@ -9,7 +9,8 @@ enum class ServerType(val typeName: String) {
     RSC("RStudio Server Connect"),
     SSP("Shiny Server or Shiny Server Pro"),
     SAI("shinyapps.io"),
-    SHN("R/Shiny")
+    SHN("R/Shiny"),
+    UNK("Unknown")
 }
 
 fun typeFromName(typeName: String): ServerType {
@@ -18,6 +19,7 @@ fun typeFromName(typeName: String): ServerType {
         "Shiny Server or Shiny Server Pro" -> ServerType.SSP
         "shinyapps.io" -> ServerType.SAI
         "R/Shiny" -> ServerType.SHN
+        "Unknown" -> ServerType.UNK
         else -> error("Unknown server type name in recording: ${typeName}")
     }
 }
