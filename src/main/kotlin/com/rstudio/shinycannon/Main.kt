@@ -277,9 +277,7 @@ class EnduranceTest(val argsStr: String,
             logger.warn("Recording made with '${rec.props.targetType.typeName}' but target looks like '${detectedType.typeName}'")
         }
 
-        if (rec.props.version < RECORDING_VERSION) {
-            logger.warn("Recording version ${rec.props.version} is older than what's supported by this version of shinycannon, you may consider upgrading shinyloadtest and making a new recording")
-        } else if (rec.props.version > RECORDING_VERSION) {
+        if (rec.props.version > RECORDING_VERSION) {
             logger.error("Recording version ${rec.props.version} is newer than this version of shinycannon supports; please upgrade shinycannon")
             exitProcess(1)
         }
