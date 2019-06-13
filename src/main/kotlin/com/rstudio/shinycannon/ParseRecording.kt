@@ -22,7 +22,7 @@ fun readPropLine(line: String): Pair<String, String> {
 fun readProps(lines: List<String>, logger: Logger): Props {
     val props = lines.asSequence()
             .takeWhile { it.startsWith("#") }
-            .map { readPropLine(it) }
+            .map(::readPropLine)
             .toMap()
     if (props.containsKey("target")) {
         logger.error("Recording is in an unsupported format. Please update shinyloadtest, make a new recording, and try again")
