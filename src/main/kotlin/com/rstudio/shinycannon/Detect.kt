@@ -44,7 +44,7 @@ fun servedBy(appUrl: String, logger: Logger): ServerType {
         xpath(resp.body, "/html/head/script")
                 .flatMap { List(it.attributes.length, { i -> it.attributes.item(i)}) }
                 .filter { it.nodeName == "src" }
-                .find { it.nodeValue.matches("^.*/shiny.min.js$".toRegex()) }
+                .find { it.nodeValue.matches("^.*/shiny(\\.min)?\\.js$".toRegex()) }
     } catch (e: Exception) {
         null
     }

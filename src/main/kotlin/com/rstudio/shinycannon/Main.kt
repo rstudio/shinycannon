@@ -271,6 +271,8 @@ class EnduranceTest(val argsStr: String,
 
         val detectedType = servedBy(httpUrl, logger)
 
+        logger.info("Detected target application type: ${detectedType.typeName}")
+
         if (detectedType != rec.props.targetType) {
             logger.warn("Recording made with '${rec.props.targetType.typeName}' but target looks like '${detectedType.typeName}'")
         }
