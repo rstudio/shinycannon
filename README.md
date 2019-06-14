@@ -52,7 +52,7 @@ docker build -t shinycannon-build .
 Then, to build the .jar and all packages (rpm/deb/sh):
 
 ```
-sudo docker run -it --rm -v $PWD:/root -w /root sc-build make packages
+sudo docker run -it --rm -v $PWD:/root -w /root shinycannon-build make packages
 ```
 
 > Note: you may or may not need `sudo`, depending on how you installed Docker.
