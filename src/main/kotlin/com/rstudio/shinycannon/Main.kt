@@ -33,16 +33,6 @@ import kotlin.concurrent.thread
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.system.exitProcess
 
-fun readRecording(recording: File): ArrayList<Event> {
-    return recording.readLines()
-            .asSequence()
-            .mapIndexed { idx, line -> Pair(idx + 1, line) }
-            .filterNot { it.second.startsWith("#") }
-            .fold(ArrayList()) { events, (lineNumber, line) ->
-                events.also { it.add(Event.fromLine(lineNumber, line)) }
-            }
-}
-
 fun randomHexString(numchars: Int): String {
     val r = SecureRandom()
     val sb = StringBuffer()
@@ -152,7 +142,7 @@ class ShinySession(val sessionId: Int,
     private fun maybeLogin() {
         credentials?.let { (username, password) ->
             if (isProtected(httpUrl)) {
-                postLogin(httpUrl, username, password, cookies = cookieStore)
+                postLogin(httpUrl, username, password, cookieStore, logger)
             } else {
                  logger.info("SHINYCANNON_USER and SHINYCANNON_PASS set, but target app doesn't require authentication.")
             }
@@ -256,6 +246,8 @@ fun getCreds() = listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
         ?.zipWithNext()
         ?.first()
 
+val RECORDING_VERSION = 1L
+
 class EnduranceTest(val argsStr: String,
                     val argsJson: String,
                     val httpUrl: String,
@@ -275,7 +267,23 @@ class EnduranceTest(val argsStr: String,
     val stats = Stats()
 
     fun run() {
-        val log = readRecording(recording)
+        val rec = readRecording(recording, logger)
+
+        val detectedType = servedBy(httpUrl, logger)
+
+        logger.info("Detected target application type: ${detectedType.typeName}")
+
+        if (detectedType != rec.props.targetType) {
+            logger.warn("Recording made with '${rec.props.targetType.typeName}' but target looks like '${detectedType.typeName}'")
+        }
+
+        if (rec.props.version > RECORDING_VERSION) {
+            logger.error("Recording version ${rec.props.version} is newer than this version of shinycannon supports; please upgrade shinycannon")
+            exitProcess(1)
+        }
+
+        val log = rec.eventLog
+
         check(log.size > 0) { "input log must not be empty" }
         check(log.last().name() == "WS_CLOSE") { "last event in log not a WS_CLOSE (did you close the tab after recording?)"}
 
@@ -345,9 +353,9 @@ class EnduranceTest(val argsStr: String,
             logger.info("Complete. Failed: ${it.fail}, Done: ${it.done}")
         }
 
-        // Workaround until https://github.com/TakahikoKawasaki/nv-websocket-client/pull/169 is merged or otherwise fixed.
-        // Timers in the websocket code hold up the JVM, so we must explicity terminate.
-        exitProcess(0);
+        // Workaround until https://github.com/TakahikoKawasaki/nv-websocket-client/issues/140 is fixed.
+        // Timers in the websocket code hold up the JVM, so we must explicitly terminate.
+        exitProcess(0)
     }
 
 }
@@ -391,12 +399,12 @@ class ArgsSerializer(): JsonSerializer<Args> {
                 else -> error("Don't know how to JSON-serialize argument type: ${it.returnType}")
             }
         }
-        return jsonObject;
+        return jsonObject
     }
 }
 
-fun recordingDuration(recording: File): Long {
-    val events = readRecording(recording)
+fun recordingDuration(recording: File, logger: Logger): Long {
+    val events = readRecording(recording, logger).eventLog
     return events.last().begin - events.first().begin
 }
 
@@ -517,7 +525,7 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
 
         // If a startInterval was supplied, then use it. Otherwise, compute
         // based on the length of the recording and the number of workers.
-        val computedStartInterval = startInterval ?: recordingDuration(recording) / workers
+        val computedStartInterval = startInterval ?: recordingDuration(recording, appLogger) / workers
 
         output.mkdirs()
         output.toPath().resolve("sessions").toFile().mkdir()

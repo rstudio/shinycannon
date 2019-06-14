@@ -13,7 +13,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <kotlin.version>1.2.60</kotlin.version>
+        <kotlin.version>1.3.31</kotlin.version>
         <junit.version>4.12</junit.version>
         <!-- 2.8.2 is the most recent release of log4j that seems to work on Java 7 -->
         <log4j.version>2.8.2</log4j.version>
