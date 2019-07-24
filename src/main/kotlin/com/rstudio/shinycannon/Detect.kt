@@ -1,6 +1,8 @@
 package com.rstudio.shinycannon
 
 import net.moznion.uribuildertiny.URIBuilderTiny
+import org.apache.http.HttpResponse
+import org.apache.http.client.CookieStore
 import org.apache.http.client.methods.HttpGet
 import org.apache.logging.log4j.Logger
 import kotlin.system.exitProcess
@@ -31,14 +33,13 @@ fun servedBy(appUrl: String, logger: Logger): ServerType {
         return ServerType.SAI
 
     val resp = slurp(HttpGet(appUrl))
-    val headers = resp.headers.mapKeys { (k, v) -> k.toLowerCase() }
 
-    if (headers.containsKey("ssp-xsrf")) {
+    if (resp.hasHeader("x-ssp-xsrf") || resp.hasCookie("SSP-XSRF")) {
         return ServerType.SSP
-    } else if (headers.containsKey("x-powered-by")) {
+    } else if (resp.hasHeader("x-powered-by")) {
         val sspVals = setOf("Express", "Shiny Server", "Shiny Server Pro")
-        if (sspVals.contains(headers["x-powered-by"])) return ServerType.SSP
-    } else if (resp.cookies.cookies.firstOrNull { it.name == "rscid" } != null) {
+        if (sspVals.contains(resp.getHeader("x-powered-by"))) return ServerType.SSP
+    } else if (resp.hasCookie("rscid")) {
         return ServerType.RSC
     }
 
