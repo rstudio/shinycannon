@@ -30,6 +30,8 @@ class HttpResponse(val statusCode: Int,
                    val body: String) {
     fun getCookie(name: String) = this.cookieStore.cookies.firstOrNull { it.name == name }
     fun hasCookie(name: String) = this.getCookie(name) != null
+    fun getHeader(name: String) = this.headers.get(name)
+    fun hasHeader(name: String) = this.headers.containsKey(name)
     companion object {
         fun from(response: org.apache.http.HttpResponse, cookies: BasicCookieStore): HttpResponse {
             return HttpResponse(

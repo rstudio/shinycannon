@@ -33,13 +33,12 @@ fun servedBy(appUrl: String, logger: Logger): ServerType {
         return ServerType.SAI
 
     val resp = slurp(HttpGet(appUrl))
-    val headers = resp.headers.mapKeys { (k, v) -> k.toLowerCase() }
 
-    if (headers.containsKey("x-ssp-xsrf") || resp.hasCookie("SSP-XSRF")) {
+    if (resp.hasHeader("x-ssp-xsrf") || resp.hasCookie("SSP-XSRF")) {
         return ServerType.SSP
-    } else if (headers.containsKey("x-powered-by")) {
+    } else if (resp.hasHeader("x-powered-by")) {
         val sspVals = setOf("Express", "Shiny Server", "Shiny Server Pro")
-        if (sspVals.contains(headers["x-powered-by"])) return ServerType.SSP
+        if (sspVals.contains(resp.getHeader("x-powered-by"))) return ServerType.SSP
     } else if (resp.hasCookie("rscid")) {
         return ServerType.RSC
     }
