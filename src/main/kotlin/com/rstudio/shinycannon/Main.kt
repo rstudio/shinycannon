@@ -115,12 +115,16 @@ class ShinySession(val sessionId: Int,
         receiveQueue.offer(WSMessage.Error(cause))
     }
 
-    val wsUrl: String = URIBuilderTiny(httpUrl).let { uri ->
-        uri.setScheme(when (uri.scheme) {
+    val wsUrl: URIBuilderTiny = URIBuilderTiny(httpUrl).let { uri ->
+        val scheme = when (uri.scheme) {
             "http" -> "ws"
             "https" -> "wss"
             else -> error("Unknown scheme: ${uri.scheme}")
-        }).build().toString()
+        }
+        uri
+            .setScheme(scheme)
+            // There may be extant query parameters if the app URL included included them for bookmarking; we must clear them.
+            .setQueryParameters(emptyMap<String, String>())
     }
 
     val allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID", "SESSION", "UPLOAD_URL", "UPLOAD_JOB_ID")
