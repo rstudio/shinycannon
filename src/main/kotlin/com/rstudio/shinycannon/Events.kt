@@ -252,7 +252,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
             check(session.webSocket == null) { "Tried to WS_OPEN but already have a websocket" }
 
             withLog(session, out) {
-                val wsUrl = session.wsUrl + session.replaceTokens(url)
+                val wsUrl = session.wsUrl.appendRawPathsByString(session.replaceTokens(url)).build()
                 session.webSocket = WebSocketFactory().createSocket(wsUrl).also {
                     it.addListener(object : WebSocketAdapter() {
                         override fun onTextMessage(sock: WebSocket, msg: String) {
