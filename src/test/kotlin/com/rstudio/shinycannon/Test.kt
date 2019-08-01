@@ -58,6 +58,8 @@ class Test {
 
     @Test
     fun appDetection() {
+        Assert.assertTrue(hasShinyJs("src = 'shared/shiny.min.js'"))
+        Assert.assertTrue(hasShinyJs("src=\"/shiny.min.js\""))
         val app01Hello_bytes = Thread
                 .currentThread()
                 .contextClassLoader
