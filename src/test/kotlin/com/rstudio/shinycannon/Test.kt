@@ -2,6 +2,7 @@ package com.rstudio.shinycannon
 
 import org.junit.Assert
 import org.junit.Test
+import java.io.ByteArrayOutputStream
 
 class Test {
 
@@ -56,16 +57,19 @@ class Test {
         }
     }
 
+    // Get a file on the classpath as a String
+    fun getResourceAsString(name: String) = ByteArrayOutputStream().also { baos ->
+        Thread.currentThread().contextClassLoader.getResourceAsStream(name).use {
+            it?.copyTo(baos)
+        }
+    }.toString()
+
     @Test
     fun appDetection() {
         Assert.assertTrue(hasShinyJs("src = 'shared/shiny.min.js'"))
         Assert.assertTrue(hasShinyJs("src=\"/shiny.min.js\""))
-        val app01Hello_bytes = Thread
-                .currentThread()
-                .contextClassLoader
-                .getResourceAsStream("default_01_hello.html")!!
-                .readAllBytes()
-        val app01Hello_body = String(app01Hello_bytes)
+
+        val app01Hello_body = getResourceAsString("default_01_hello.html")
 
         Assert.assertTrue(hasShinyJs(app01Hello_body))
 
