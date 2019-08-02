@@ -56,5 +56,25 @@ class Test {
         }
     }
 
+    @Test
+    fun appDetection() {
+        Assert.assertTrue(hasShinyJs("src = 'shared/shiny.min.js'"))
+        Assert.assertTrue(hasShinyJs("src=\"/shiny.min.js\""))
+        val app01Hello_bytes = Thread
+                .currentThread()
+                .contextClassLoader
+                .getResourceAsStream("default_01_hello.html")!!
+                .readAllBytes()
+        val app01Hello_body = String(app01Hello_bytes)
 
+        Assert.assertTrue(hasShinyJs(app01Hello_body))
+
+        val nonsenseMarkup = "ader class=\"d-header\">\n" +
+                "    <div class=\"wrap\">\n" +
+                "      <div class=\"contents\">\n" +
+                "        <div class=\"header-row\">\n" +
+                "          <div class=\"logo-wrapper\">"
+
+        Assert.assertFalse(hasShinyJs(nonsenseMarkup))
+    }
 }
