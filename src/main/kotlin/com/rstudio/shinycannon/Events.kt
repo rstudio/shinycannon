@@ -233,9 +233,9 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                     }
 
                     client.execute(post).use { response ->
-                        val body = EntityUtils.toString(response.entity)
                         response.statusLine.statusCode.let {
                             check(it == status, {
+                                val body = response.entity?.let { EntityUtils.toString(it) } ?: ""
                                 "Status $it received, expected $status, URL: $url, Response body: $body"
                             })
                         }
