@@ -11,7 +11,8 @@ MANDIR=$(PREFIX)/share/man/man1
 
 FPM_ARGS=--iteration $(GIT_SHA) -f -s dir -n shinycannon -v $(VERSION) -C package .
 
-RPM_FILE=shinycannon-$(VERSION)-$(GIT_SHA).x86_64.rpm
+RPM_RH_FILE=shinycannon-$(VERSION)-$(GIT_SHA).x86_64.rpm
+RPM_SUSE_FILE=shinycannon-$(VERSION)-suse-$(GIT_SHA).x86_64.rpm
 DEB_FILE=shinycannon_$(VERSION)-$(GIT_SHA)_amd64.deb
 JAR_FILE=shinycannon-$(VERSION)-$(GIT_SHA).jar
 BIN_FILE=shinycannon-$(VERSION)-$(GIT_SHA).sh
@@ -20,7 +21,7 @@ BUCKET_NAME=rstudio-shinycannon-build
 
 .PHONY: packages RELEASE.txt
 
-packages: $(RPM_FILE) $(DEB_FILE) $(JAR_FILE) $(BIN_FILE)
+packages: $(RPM_RH_FILE) $(RPM_SUSE_FILE) $(DEB_FILE) $(JAR_FILE) $(BIN_FILE)
 
 # This is the uberjar produced and named by Maven. It's renamed to $(JAR_FILE),
 # which is the uberjar we upload to S3 and document using. The only difference
@@ -41,8 +42,11 @@ $(MANDIR)/shinycannon.1: shinycannon.1.ronn
 	mkdir -p $(dir $@)
 	cat $< |ronn -r --manual="SHINYCANNON MANUAL" --pipe > $@
 
-$(RPM_FILE): $(BINDIR)/shinycannon $(MANDIR)/shinycannon.1
+$(RPM_RH_FILE): $(BINDIR)/shinycannon $(MANDIR)/shinycannon.1
 	fpm -t rpm -d 'java >= 1:1.7.0' $(FPM_ARGS)
+
+$(RPM_SUSE_FILE): $(BINDIR)/shinycannon $(MANDIR)/shinycannon.1
+	fpm -t rpm -d 'java-headless >= 1.7.0' -p $(RPM_SUSE_FILE) $(FPM_ARGS)
 
 # Install with 'apt update && apt install ./shinycannon_*.deb'
 $(DEB_FILE): $(BINDIR)/shinycannon $(MANDIR)/shinycannon.1
@@ -60,12 +64,13 @@ RELEASE.txt:
 RELEASE_URLS.txt: RELEASE.txt
 	rm -f $@
 	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/deb/$(DEB_FILE) >> $@
-	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/rpm/$(RPM_FILE) >> $@
+	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/rpm/$(RPM_SUSE_FILE) >> $@
+	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/rpm/$(RPM_RH_FILE) >> $@
 	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/jar/$(JAR_FILE) >> $@
 	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/bin/$(BIN_FILE) >> $@
 
 clean:
 	rm -rf package target
-	rm -f $(VERSION_FILE) $(RPM_FILE) $(DEB_FILE) $(JAR_FILE) $(BIN_FILE)
+	rm -f $(VERSION_FILE) $(RPM_RH_FILE) $(RPM_SUSE_FILE) $(DEB_FILE) $(JAR_FILE) $(BIN_FILE)
 
 print-%  : ; @echo $* = $($*)
