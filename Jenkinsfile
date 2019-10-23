@@ -37,7 +37,7 @@ try {
       	aws s3 cp *.deb s3://rstudio-shinycannon-build/\$(cat RELEASE.txt)/deb/
       	aws s3 cp *.jar s3://rstudio-shinycannon-build/\$(cat RELEASE.txt)/jar/
       	aws s3 cp shinycannon-*.sh s3://rstudio-shinycannon-build/\$(cat RELEASE.txt)/bin/
-      	aws s3 cp RELEASE_URLS.txt s3://rstudio-shinycannon-build/
+      	aws s3 cp RELEASE_URLS.csv s3://rstudio-shinycannon-build/
       	"""
       }
     }
