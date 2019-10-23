@@ -61,13 +61,14 @@ $(BIN_FILE): $(BINDIR)/shinycannon
 RELEASE.txt:
 	echo $(shell date +"%Y-%m-%d-%T")_$(VERSION)-$(GIT_SHA) > $@
 
-RELEASE_URLS.txt: RELEASE.txt
+RELEASE_URLS.csv: RELEASE.txt
 	rm -f $@
-	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/deb/$(DEB_FILE) >> $@
-	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/rpm/$(RPM_SUSE_FILE) >> $@
-	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/rpm/$(RPM_RH_FILE) >> $@
-	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/jar/$(JAR_FILE) >> $@
-	echo https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/bin/$(BIN_FILE) >> $@
+	echo version,sha,platform,file,url >> $@
+	echo $(VERSION),$(GIT_SHA),deb,$(DEB_FILE),https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/deb/$(DEB_FILE) >> $@
+	echo $(VERSION),$(GIT_SHA),rpm_suse,$(RPM_SUSE_FILE),https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/rpm/$(RPM_SUSE_FILE) >> $@
+	echo $(VERSION),$(GIT_SHA),rpm_rh,$(RPM_RH_FILE),https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/rpm/$(RPM_RH_FILE) >> $@
+	echo $(VERSION),$(GIT_SHA),jar,$(JAR_FILE),https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/jar/$(JAR_FILE) >> $@
+	echo $(VERSION),$(GIT_SHA),sh,$(BIN_FILE),https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/bin/$(BIN_FILE) >> $@
 
 clean:
 	rm -rf package target

@@ -26,7 +26,7 @@ try {
         stage('build') {
           sh """
           make packages
-          make RELEASE.txt RELEASE_URLS.txt
+          make RELEASE.txt RELEASE_URLS.csv
           """
         }
       }
