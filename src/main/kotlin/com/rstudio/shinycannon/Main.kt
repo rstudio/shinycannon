@@ -507,12 +507,6 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
 
         if (output.exists()) {
             if (overwriteOutput) {
-                // Ensure the existing directory we're about to delete is conceivably an output directory.
-                check(listOf("recording.log", "sessions").map {
-                    output.toPath().resolve(it).toFile()
-                }.all { it.exists() }, {
-                    "Directory doesn't look like an output directory, so not overwriting. Please delete it manually."
-                })
                 output.deleteRecursively()
             } else {
                 error("Output dir $outputDir already exists and --overwrite-output not set")
