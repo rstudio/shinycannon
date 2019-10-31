@@ -501,6 +501,12 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
                 """.trimIndent()
     ))).run {
 
+        val recording = File(recordingPath)
+
+        if (!(recording.exists() && recording.isFile)) {
+            error("recording '${recording}' doesn't exist or is not a file")
+        }
+
         Thread.currentThread().name = "thread00"
 
         val output = File(outputDir)
@@ -514,12 +520,6 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
         }
 
         val appLogger = initLogging(debugLog, output.toPath().resolve("debug.log").toString(), logLevel)
-
-        val recording = File(recordingPath)
-
-        if (!(recording.exists() && recording.isFile)) {
-            error("recording '${recording}' doesn't exist or is not a file")
-        }
 
         // If a startInterval was supplied, then use it. Otherwise, compute
         // based on the length of the recording and the number of workers.
