@@ -501,18 +501,18 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
                 """.trimIndent()
     ))).run {
 
+        val recording = File(recordingPath)
+
+        if (!(recording.exists() && recording.isFile)) {
+            error("recording '${recording}' doesn't exist or is not a file")
+        }
+
         Thread.currentThread().name = "thread00"
 
         val output = File(outputDir)
 
         if (output.exists()) {
             if (overwriteOutput) {
-                // Ensure the existing directory we're about to delete is conceivably an output directory.
-                check(listOf("recording.log", "sessions").map {
-                    output.toPath().resolve(it).toFile()
-                }.all { it.exists() }, {
-                    "Directory doesn't look like an output directory, so not overwriting. Please delete it manually."
-                })
                 output.deleteRecursively()
             } else {
                 error("Output dir $outputDir already exists and --overwrite-output not set")
@@ -520,12 +520,6 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
         }
 
         val appLogger = initLogging(debugLog, output.toPath().resolve("debug.log").toString(), logLevel)
-
-        val recording = File(recordingPath)
-
-        if (!(recording.exists() && recording.isFile)) {
-            error("recording '${recording}' doesn't exist or is not a file")
-        }
 
         // If a startInterval was supplied, then use it. Otherwise, compute
         // based on the length of the recording and the number of workers.
