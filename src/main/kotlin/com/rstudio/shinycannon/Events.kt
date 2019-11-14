@@ -366,6 +366,24 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
         }
     }
 
+    fun getUrls(parsedMessage: JsonObject): List<String> {
+        // We sort keys here (ascending) so that nonces are gathered in the same order they were gathered during
+        // recording.
+        return parsedMessage.get("values")?.asJsonObject?.keySet()?.sorted()?.map { key ->
+            parsedMessage.get("values")?.asJsonObject?.get(key)?.asJsonObject
+        }?.mapNotNull { value ->
+            value
+                ?.get("x")
+                ?.asJsonObject
+                ?.get("options")
+                ?.asJsonObject
+                ?.get("ajax")
+                ?.asString
+        } ?: listOf()
+    }
+
+    val nonceRe = "/dataobj/.*\\?w=&nonce=([0-9a-f]+)".toRegex()
+
     class WS_RECV_INIT_DT(override val begin: Long,
                           override val lineNumber: Int,
                           val message: String) : Event(begin, lineNumber) {
@@ -376,25 +394,15 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                 }
                 session.logger.debug("WS_RECV_INIT_DT received: $receivedStr")
 
-                val values = parseMessage(receivedStr)?.get("values")?.asJsonObject!!
-                val urls = values.keySet().mapNotNull {
-                    val value = values.get(it)
-                    if (value.isJsonObject) {
-                        return value.asJsonObject
-                                ?.get("x")
-                                ?.asJsonObject
-                                ?.get("options")
-                                ?.asJsonObject
-                                ?.get("ajax")
-                                ?.asJsonObject
-                                ?.get("url")
-                                ?.asString
-                    } else {
-                        return null
-                    }
-                }
+                val urls = getUrls(parseMessage(receivedStr)!!)
+                if (urls.size == 0) error("No DT URLs/nonces found in WS_RECV_INIT_DT message")
 
-                session.tokenDictionary["DT_NONCE_?"] = "foo"
+                getUrls(parseMessage(receivedStr)!!).mapIndexed { i, url ->
+                    Pair(i, nonceRe.find(url)?.groupValues?.get(1)!!)
+                }.forEach { (i, nonce) ->
+                    session.tokenDictionary["DT_NONCE_${i}"] = nonce
+                    session.logger.debug("WS_RECV_INIT_DT got DT_NONCE_${i}: ${nonce}")
+                }
             }
         }
     }
