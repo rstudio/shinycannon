@@ -378,6 +378,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                 ?.get("options")
                 ?.asJsonObject
                 ?.get("ajax")
+                ?.asJsonObject
+                ?.get("url")
                 ?.asString
         } ?: listOf()
     }

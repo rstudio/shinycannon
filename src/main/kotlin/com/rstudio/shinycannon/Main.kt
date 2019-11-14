@@ -42,7 +42,7 @@ fun randomHexString(numchars: Int): String {
 
 fun getTokens(url: String): HashSet<String> {
     val tokens = HashSet<String>()
-    for (token in Regex("""\$\{([A-Z_]+)}""").findAll(url)) {
+    for (token in Regex("""\$\{([A-Z_]+[0-9]*)}""").findAll(url)) {
         // we know the next line is safe because: token.groups.forEach { println(it) }
         tokens.add(token.groups[1]!!.value)
     }
@@ -50,15 +50,13 @@ fun getTokens(url: String): HashSet<String> {
 }
 
 fun replaceTokens(s: String,
-                  allowedTokens: HashSet<String>,
+                  tokenAllowed: (String) -> Boolean,
                   tokenDictionary: HashMap<String, String>): String {
 
     val tokensInUrl = getTokens(s)
 
-    if (allowedTokens.union(tokensInUrl) != allowedTokens) {
-        val illegalTokens = tokensInUrl.filterNot { allowedTokens.contains(it) }
-        throw Exception("$illegalTokens are illegal tokens")
-    }
+    val illegalTokens = tokensInUrl.filterNot(tokenAllowed)
+    if (illegalTokens.size > 0) error("$illegalTokens are illegal tokens")
 
     return tokensInUrl.fold(s) { newS, tokenName ->
         if (!tokenDictionary.containsKey(tokenName))
@@ -128,6 +126,9 @@ class ShinySession(val sessionId: Int,
     }
 
     val allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID", "SESSION", "UPLOAD_URL", "UPLOAD_JOB_ID")
+    private fun tokenAllowed(token: String): Boolean {
+        return allowedTokens.contains(token) || token.matches("^DT_NONCE_[0-9]+$".toRegex())
+    }
     val tokenDictionary: HashMap<String, String> = hashMapOf(
             Pair("ROBUST_ID", randomHexString(18)),
             Pair("SOCKJSID", "000/${randomHexString(8)}")
@@ -141,7 +142,7 @@ class ShinySession(val sessionId: Int,
 
     val cookieStore = BasicCookieStore()
 
-    fun replaceTokens(s: String) = replaceTokens(s, allowedTokens, tokenDictionary)
+    fun replaceTokens(s: String) = replaceTokens(s, ::tokenAllowed, tokenDictionary)
 
     private fun maybeLogin() {
         credentials?.let { (username, password) ->

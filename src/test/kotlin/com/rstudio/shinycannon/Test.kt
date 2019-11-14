@@ -7,7 +7,7 @@ import java.io.ByteArrayOutputStream
 class Test {
 
     val testUrl = "foo${'$'}{LOL}bar${'\$'}{LMAO}"
-    val allowedTokens: HashSet<String> = hashSetOf("LOL", "DUCK", "LMAO")
+    fun tokenAllowed(token: String) = hashSetOf("LOL", "DUCK", "LMAO").contains(token)
     val urlDictionary: HashMap<String, String> = hashMapOf(Pair("LOL", " funny! "), Pair("LMAO", " very funny!!! "))
 
     @Test
@@ -18,7 +18,7 @@ class Test {
 
     @Test
     fun testTokenizeUrl() {
-        val url = replaceTokens(testUrl, allowedTokens, urlDictionary)
+        val url = replaceTokens(testUrl, ::tokenAllowed, urlDictionary)
         Assert.assertEquals("foo funny! bar very funny!!! ", url)
     }
 
