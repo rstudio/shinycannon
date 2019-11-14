@@ -1,5 +1,6 @@
 package com.rstudio.shinycannon
 
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.neovisionaries.ws.client.*
 import net.moznion.uribuildertiny.URIBuilderTiny
@@ -103,6 +104,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                         if (obj.has("datafile")) obj.get("datafile").asString else null)
                 "WS_OPEN" -> WS_OPEN(begin, lineNumber, obj.get("url").asString)
                 "WS_RECV" -> WS_RECV(begin, lineNumber, obj.get("message").asString)
+                "WS_RECV_INIT_DT" -> WS_RECV_INIT_DT(begin, lineNumber, obj.get("message").asString)
                 "WS_RECV_BEGIN_UPLOAD" -> WS_RECV_BEGIN_UPLOAD(begin, lineNumber, obj.get("message").asString)
                 "WS_RECV_INIT" -> WS_RECV_INIT(begin, lineNumber, obj.get("message").asString)
                 "WS_SEND" -> WS_SEND(begin, lineNumber, obj.get("message").asString)
@@ -364,6 +366,38 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
         }
     }
 
+    class WS_RECV_INIT_DT(override val begin: Long,
+                          override val lineNumber: Int,
+                          val message: String) : Event(begin, lineNumber) {
+        override fun handle(session: ShinySession, out: PrintWriter) {
+            withLog(session, out) {
+                val receivedStr = keepPolling(session.receiveQueue) {
+                    session.logger.warn("WS_RECV_INIT line ${lineNumber}: Haven't received message after $it seconds")
+                }
+                session.logger.debug("WS_RECV_INIT_DT received: $receivedStr")
+
+                val values = parseMessage(receivedStr)?.get("values")?.asJsonObject!!
+                val urls = values.keySet().mapNotNull {
+                    val value = values.get(it)
+                    if (value.isJsonObject) {
+                        return value.asJsonObject
+                                ?.get("x")
+                                ?.asJsonObject
+                                ?.get("options")
+                                ?.asJsonObject
+                                ?.get("ajax")
+                                ?.asJsonObject
+                                ?.get("url")
+                                ?.asString
+                    } else {
+                        return null
+                    }
+                }
+
+                session.tokenDictionary["DT_NONCE_?"] = "foo"
+            }
+        }
+    }
     class WS_RECV_BEGIN_UPLOAD(override val begin: Long,
                                override val lineNumber: Int,
                                val message: String) : Event(begin, lineNumber) {
