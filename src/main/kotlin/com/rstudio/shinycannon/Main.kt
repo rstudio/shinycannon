@@ -127,7 +127,7 @@ class ShinySession(val sessionId: Int,
 
     val allowedTokens: HashSet<String> = hashSetOf("WORKER", "TOKEN", "ROBUST_ID", "SOCKJSID", "SESSION", "UPLOAD_URL", "UPLOAD_JOB_ID")
     private fun tokenAllowed(token: String): Boolean {
-        return allowedTokens.contains(token) || token.matches("^DT_NONCE_[0-9]+$".toRegex())
+        return allowedTokens.contains(token) || token.matches("^SHINY_DATAOBJ_NONCE_[0-9]+$".toRegex())
     }
     val tokenDictionary: HashMap<String, String> = hashMapOf(
             Pair("ROBUST_ID", randomHexString(18)),

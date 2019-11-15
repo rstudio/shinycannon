@@ -380,12 +380,10 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                 }
                 session.logger.debug("WS_RECV_DATAOBJ received: $receivedStr")
 
-                getNonces(message).also {
-                    check(it.count() > 0) {
-                        "No dataobj URLs/nonces found in WS_RECV_DATAOBJ message"
-                    }
+                getNonces(receivedStr).also {
+                    check(it.count() > 0) { "No dataobj URLs/nonces found in WS_RECV_DATAOBJ message" }
                 }.forEachIndexed { i, nonce ->
-                    session.tokenDictionary["SHINY_DATAOBJ_NONCE_${i}"]
+                    session.tokenDictionary["SHINY_DATAOBJ_NONCE_${i}"] = nonce
                     session.logger.debug("WS_RECV_DATAOBJ got SHINY_DATAOBJ_NONCE_${i}: ${nonce}")
                 }
             }
