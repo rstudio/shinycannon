@@ -104,7 +104,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                         if (obj.has("datafile")) obj.get("datafile").asString else null)
                 "WS_OPEN" -> WS_OPEN(begin, lineNumber, obj.get("url").asString)
                 "WS_RECV" -> WS_RECV(begin, lineNumber, obj.get("message").asString)
-                "WS_RECV_INIT_DT" -> WS_RECV_INIT_DT(begin, lineNumber, obj.get("message").asString)
+                "WS_RECV_DATAOBJ" -> WS_RECV_DATAOBJ(begin, lineNumber, obj.get("message").asString)
                 "WS_RECV_BEGIN_UPLOAD" -> WS_RECV_BEGIN_UPLOAD(begin, lineNumber, obj.get("message").asString)
                 "WS_RECV_INIT" -> WS_RECV_INIT(begin, lineNumber, obj.get("message").asString)
                 "WS_SEND" -> WS_SEND(begin, lineNumber, obj.get("message").asString)
@@ -366,44 +366,25 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
         }
     }
 
-    fun getUrls(parsedMessage: JsonObject): List<String> {
-        // We sort keys here (ascending) so that nonces are gathered in the same order they were gathered during
-        // recording.
-        return parsedMessage.get("values")?.asJsonObject?.keySet()?.sorted()?.map { key ->
-            parsedMessage.get("values")?.asJsonObject?.get(key)?.asJsonObject
-        }?.mapNotNull { value ->
-            value
-                ?.get("x")
-                ?.asJsonObject
-                ?.get("options")
-                ?.asJsonObject
-                ?.get("ajax")
-                ?.asJsonObject
-                ?.get("url")
-                ?.asString
-        } ?: listOf()
-    }
+    val nonceRe = "/dataobj/([^?]+)\\?w=[^&]*&nonce=([0-9a-f]+)".toRegex()
 
-    val nonceRe = "/dataobj/.*\\?w=&nonce=([0-9a-f]+)".toRegex()
+    fun getNonces(msg: String) = nonceRe.findAll(msg).sortedBy { it.groupValues[1] }.map { it.groupValues[2] }
 
-    class WS_RECV_INIT_DT(override val begin: Long,
+    class WS_RECV_DATAOBJ(override val begin: Long,
                           override val lineNumber: Int,
                           val message: String) : Event(begin, lineNumber) {
         override fun handle(session: ShinySession, out: PrintWriter) {
             withLog(session, out) {
                 val receivedStr = keepPolling(session.receiveQueue) {
-                    session.logger.warn("WS_RECV_INIT line ${lineNumber}: Haven't received message after $it seconds")
+                    session.logger.warn("WS_RECV_DATAOBJ line ${lineNumber}: Haven't received message after $it seconds")
                 }
-                session.logger.debug("WS_RECV_INIT_DT received: $receivedStr")
+                session.logger.debug("WS_RECV_DATAOBJ received: $receivedStr")
 
-                val urls = getUrls(parseMessage(receivedStr)!!)
-                if (urls.size == 0) error("No DT URLs/nonces found in WS_RECV_INIT_DT message")
-
-                getUrls(parseMessage(receivedStr)!!).mapIndexed { i, url ->
-                    Pair(i, nonceRe.find(url)?.groupValues?.get(1)!!)
-                }.forEach { (i, nonce) ->
-                    session.tokenDictionary["DT_NONCE_${i}"] = nonce
-                    session.logger.debug("WS_RECV_INIT_DT got DT_NONCE_${i}: ${nonce}")
+                getNonces(message).ifEmpty {
+                    error("No dataobj URLs/nonces found in WS_RECV_DATAOBJ message")
+                }.forEachIndexed { i, nonce ->
+                    session.tokenDictionary["SHINY_DATAOBJ_NONCE_${i}"]
+                    session.logger.debug("WS_RECV_DATAOBJ got SHINY_DATAOBJ_NONCE_${i}: ${nonce}")
                 }
             }
         }
