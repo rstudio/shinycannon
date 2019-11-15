@@ -59,6 +59,10 @@ fun canIgnore(message: String):Boolean {
     return false
 }
 
+val nonceRe = "/dataobj/([^?]+)\\?w=[^&]*&nonce=([0-9a-f]+)".toRegex()
+
+fun getNonces(msg: String) = nonceRe.findAll(msg).sortedBy { it.groupValues[1] }.map { it.groupValues[2] }
+
 sealed class Event(open val begin: Long, open val lineNumber: Int) {
     open fun sleepBefore(session: ShinySession): Long = 0
 
@@ -366,10 +370,6 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
         }
     }
 
-    val nonceRe = "/dataobj/([^?]+)\\?w=[^&]*&nonce=([0-9a-f]+)".toRegex()
-
-    fun getNonces(msg: String) = nonceRe.findAll(msg).sortedBy { it.groupValues[1] }.map { it.groupValues[2] }
-
     class WS_RECV_DATAOBJ(override val begin: Long,
                           override val lineNumber: Int,
                           val message: String) : Event(begin, lineNumber) {
@@ -380,8 +380,10 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                 }
                 session.logger.debug("WS_RECV_DATAOBJ received: $receivedStr")
 
-                getNonces(message).ifEmpty {
-                    error("No dataobj URLs/nonces found in WS_RECV_DATAOBJ message")
+                getNonces(message).also {
+                    check(it.count() > 0) {
+                        "No dataobj URLs/nonces found in WS_RECV_DATAOBJ message"
+                    }
                 }.forEachIndexed { i, nonce ->
                     session.tokenDictionary["SHINY_DATAOBJ_NONCE_${i}"]
                     session.logger.debug("WS_RECV_DATAOBJ got SHINY_DATAOBJ_NONCE_${i}: ${nonce}")

@@ -81,4 +81,11 @@ class Test {
 
         Assert.assertFalse(hasShinyJs(nonsenseMarkup))
     }
+
+    @Test
+    fun nonceDetection() {
+        val msg = getResourceAsString("ws_recv_dataobj_msg.json")
+
+        Assert.assertEquals(listOf("35441d582c1c67c0", "460858f4e5fbb54e", "7386dad0c1c4982a"), getNonces(msg).toList())
+    }
 }
