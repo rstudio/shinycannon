@@ -58,6 +58,14 @@ fun canIgnore(message: String):Boolean {
     return false
 }
 
+fun joinPaths(p1: String, p2: String): String {
+    return when(Pair(p1.endsWith("/"), p2.startsWith("/"))) {
+        Pair(true, true) -> p1 + p2.substring(1)
+        Pair(true, false), Pair(false, true) -> p1 + p2
+        else -> p1 + "/" + p2
+    }
+}
+
 sealed class Event(open val begin: Long, open val lineNumber: Int) {
     open fun sleepBefore(session: ShinySession): Long = 0
 
@@ -126,10 +134,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
         // TODO Candidate for becoming a method on ShinySession that takes url/status args
         fun get(session: ShinySession): String {
             val renderedUrl = session.replaceTokens(this.url)
-            val url = URIBuilderTiny(session.httpUrl)
-                    .appendRawPathsByString(renderedUrl)
-                    .build()
-                    .toString()
+            val url = joinPaths(session.httpUrl, renderedUrl)
 
             val cfg = RequestConfig.custom()
                     .setCookieSpec(CookieSpecs.STANDARD)
@@ -210,10 +215,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                        val datafile: String?): Http(begin, lineNumber, url, status) {
             override fun handle(session: ShinySession, out: PrintWriter) {
                 withLog(session, out) {
-                    val url = URIBuilderTiny(session.httpUrl)
-                            .appendRawPathsByString(session.replaceTokens(url))
-                            .build()
-                            .toString()
+                    val url = joinPaths(session.httpUrl, session.replaceTokens(url))
                     val cfg = RequestConfig.custom()
                             .setCookieSpec(CookieSpecs.STANDARD)
                             .build()
