@@ -127,8 +127,9 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                       open val status: Int) : Event(begin, lineNumber) {
 
         fun statusEquals(status: Int): Boolean {
-            val equalCodes = setOf(200, 304)
-            return equalCodes.union(setOf(this.status, status)) == equalCodes
+            return this.status == status
+                    || (this.status == 200 && status == 302)
+                    || (this.status == 302 && status == 200)
         }
 
         // TODO Candidate for becoming a method on ShinySession that takes url/status args
@@ -149,7 +150,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
             client.execute(get).use { response ->
                 val body = EntityUtils.toString(response.entity)
                 val gotStatus = response.statusLine.statusCode
-                if (!this.statusEquals(response.statusLine.statusCode))
+                if (!this.statusEquals(gotStatus))
                     error("Status $gotStatus received, expected $status, URL: $url, Response body: $body")
                 return body
             }
