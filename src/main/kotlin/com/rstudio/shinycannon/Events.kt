@@ -128,8 +128,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
 
         fun statusEquals(status: Int): Boolean {
             return this.status == status
-                    || (this.status == 200 && status == 302)
-                    || (this.status == 302 && status == 200)
+                    || (this.status == 200 && status == 304)
+                    || (this.status == 304 && status == 200)
         }
 
         // TODO Candidate for becoming a method on ShinySession that takes url/status args
