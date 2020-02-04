@@ -7,28 +7,29 @@ import com.xenomachina.argparser.DefaultHelpFormatter
 import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
 import net.moznion.uribuildertiny.URIBuilderTiny
+import org.apache.http.Header
+import org.apache.http.client.methods.HttpRequestBase
 import org.apache.http.impl.client.BasicCookieStore
+import org.apache.http.message.BasicHeader
 import org.apache.logging.log4j.Level
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import org.apache.logging.log4j.core.Filter
 import org.apache.logging.log4j.core.config.Configurator
 import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory
+import org.joda.time.Instant
 import java.io.File
 import java.io.PrintWriter
-import java.lang.Exception
 import java.lang.reflect.Type
 import java.math.BigDecimal
 import java.nio.file.Paths
 import java.security.SecureRandom
-import org.joda.time.Instant
 import java.util.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Pattern
-import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.system.exitProcess
@@ -93,11 +94,16 @@ sealed class WSMessage() {
     data class Error(val err: Throwable): WSMessage()
 }
 
+fun <T : HttpRequestBase> T.addHeaders(headers: List<Header>): T {
+    return headers.fold(this, { req, h -> req.apply { this.addHeader(h) }})
+}
+
 // Represents a single "user" during the course of a LoadTest.
 class ShinySession(val sessionId: Int,
                    val workerId: Int,
                    val iterationId: Int,
                    val httpUrl: String,
+                   val headers: MutableList<Header>,
                    val recording: File,
                    var script: ArrayList<Event>,
                    val logger: Logger,
@@ -145,8 +151,8 @@ class ShinySession(val sessionId: Int,
 
     private fun maybeLogin() {
         credentials?.let { (username, password) ->
-            if (isProtected(httpUrl)) {
-                postLogin(httpUrl, username, password, cookieStore, logger)
+            if (isProtected(httpUrl, headers)) {
+                postLogin(httpUrl, username, password, cookieStore, logger, headers = headers)
             } else {
                  logger.info("SHINYCANNON_USER and SHINYCANNON_PASS set, but target app doesn't require authentication.")
             }
@@ -255,6 +261,7 @@ val RECORDING_VERSION = 1L
 class EnduranceTest(val argsStr: String,
                     val argsJson: String,
                     val httpUrl: String,
+                    val headers: MutableList<Header>,
                     val recording: File,
                     // Amount of time to wait between starting workers until target reached
                     val warmupInterval: Long = 0,
@@ -273,7 +280,7 @@ class EnduranceTest(val argsStr: String,
     fun run() {
         val rec = readRecording(recording, logger)
 
-        val detectedType = servedBy(httpUrl, logger)
+        val detectedType = servedBy(httpUrl, logger, headers)
 
         logger.info("Detected target application type: ${detectedType.typeName}")
 
@@ -301,7 +308,7 @@ class EnduranceTest(val argsStr: String,
                 .toFile()
 
         fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
-            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, recording, log, logger, getCreds())
+            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, headers, recording, log, logger, getCreds())
             val outputFile = makeOutputFile(sessionId, workerId, iterationId)
             outputFile.printWriter().use { out ->
                 out.println("# " + argsStr)
@@ -364,6 +371,14 @@ class EnduranceTest(val argsStr: String,
 
 }
 
+fun parseHeader(header: String): Header {
+    val parts = header.split(":")
+    check(parts.size == 2) { "Header is malformed" }
+    val (name, value) = parts
+    check(name.isNotEmpty()) { "Header name is empty" }
+    return BasicHeader(name, value.replace("^\\s+", ""))
+}
+
 class Args(parser: ArgParser) {
     val recordingPath by parser.positional("Path to recording file")
     val appUrl by parser.positional("URL of the Shiny application to interact with")
@@ -385,7 +400,9 @@ class Args(parser: ArgParser) {
     val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
         Level.toLevel(this.toUpperCase(), Level.WARN) as Level
     }.default(Level.WARN)
-    val headers by parser.adding("-H", help = "A custom HTTP header to add to each request.")
+    val headers by parser.adding("-H", "--header", help = "A custom HTTP header in the form 'name: value' to add to each request.") {
+        parseHeader(this)
+    }
 }
 
 class ArgsSerializer(): JsonSerializer<Args> {
@@ -547,6 +564,7 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
                         .create()
                         .toJson(this),
                 appUrl,
+                headers,
                 recording,
                 numWorkers = workers,
                 outputDir = output,

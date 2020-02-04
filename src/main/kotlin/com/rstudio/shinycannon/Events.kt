@@ -2,7 +2,6 @@ package com.rstudio.shinycannon
 
 import com.google.gson.JsonParser
 import com.neovisionaries.ws.client.*
-import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.HttpGet
@@ -10,9 +9,9 @@ import org.apache.http.client.methods.HttpPost
 import org.apache.http.entity.FileEntity
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.util.EntityUtils
+import org.joda.time.Instant
 import java.io.PrintWriter
 import java.nio.file.FileSystems
-import org.joda.time.Instant
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
@@ -146,7 +145,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                     .setDefaultRequestConfig(cfg)
                     .setUserAgent(getUserAgent())
                     .build()
-            val get = HttpGet(url)
+            val get = HttpGet(url).addHeaders(session.headers)
             client.execute(get).use { response ->
                 val body = EntityUtils.toString(response.entity)
                 val gotStatus = response.statusLine.statusCode
@@ -226,7 +225,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                             .setDefaultRequestConfig(cfg)
                             .setUserAgent(getUserAgent())
                             .build()
-                    val post = HttpPost(url)
+                    val post = HttpPost(url).addHeaders(session.headers)
 
                     if (datafile != null) {
                         val parentDir = session.recording.toPath().parent ?: FileSystems.getDefault().getPath(".")
@@ -290,6 +289,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                             .cookies
                             .map { "${it.name}=${it.value}" }
                             .joinToString("; "))
+
+                    session.headers.forEach { h -> it.addHeader(h.name, h.value) }
 
                     it.addHeader("user-agent", getUserAgent())
 

@@ -1,6 +1,7 @@
 package com.rstudio.shinycannon
 
 import net.moznion.uribuildertiny.URIBuilderTiny
+import org.apache.http.Header
 import org.apache.http.HttpEntity
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
@@ -76,8 +77,8 @@ fun xpath(docString: String, query: String): Array<Node> {
 // XML collection type produced by the XPath API.
 operator fun NamedNodeMap.get(itemName: String): String = this.getNamedItem(itemName).nodeValue
 
-fun isProtected(appUrl: String): Boolean {
-    return setOf(403, 404).contains(slurp(HttpGet(appUrl)).statusCode)
+fun isProtected(appUrl: String, headers: MutableList<Header> = mutableListOf()): Boolean {
+    return setOf(403, 404).contains(slurp(HttpGet(appUrl).addHeaders(headers)).statusCode)
 }
 
 // Returns a Map of hidden inputs that must be posted along with
@@ -163,9 +164,14 @@ fun loginSSP(context: AuthContext, username: String, password: String): BasicCoo
     }
 }
 
-fun postLogin(appUrl: String, username: String, password: String, cookies: BasicCookieStore, logger: Logger): BasicCookieStore {
+fun postLogin(appUrl: String,
+              username: String,
+              password: String,
+              cookies: BasicCookieStore,
+              logger: Logger,
+              headers: MutableList<Header> = mutableListOf()): BasicCookieStore {
 
-    val resp = slurp(HttpGet(appUrl), cookies = cookies)
+    val resp = slurp(HttpGet(appUrl).addHeaders(headers), cookies = cookies)
     val server = servedBy(appUrl, logger)
     val inputs = getInputs(resp, server)
     val loginUrl = loginUrlFor(appUrl, server)

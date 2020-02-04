@@ -1,8 +1,10 @@
 package com.rstudio.shinycannon
 
 import net.moznion.uribuildertiny.URIBuilderTiny
+import org.apache.http.Header
 import org.apache.http.client.methods.HttpGet
 import org.apache.logging.log4j.Logger
+import java.net.http.HttpHeaders
 import kotlin.system.exitProcess
 
 enum class ServerType(val typeName: String) {
@@ -28,13 +30,16 @@ fun typeFromName(typeName: String): ServerType {
 // We do this instead of parsing the HTML in case the HTML is invalid.
 fun hasShinyJs(body: String) = "/shiny(\\.min)?\\.js[\"']".toRegex().containsMatchIn(body)
 
-fun servedBy(appUrl: String, logger: Logger): ServerType {
+fun servedBy(appUrl: String, logger: Logger, headers: MutableList<Header> = mutableListOf()): ServerType {
     val url = URIBuilderTiny(appUrl)
 
     if (url.host.matches("^.*\\.shinyapps\\.io$".toRegex()))
         return ServerType.SAI
 
-    val resp = slurp(HttpGet(appUrl))
+    val req = HttpGet(appUrl).apply {
+        headers.forEach { this.setHeader(it) }
+    }
+    val resp = slurp(req)
 
     if (resp.hasHeader("x-ssp-xsrf") || resp.hasCookie("SSP-XSRF")) {
         return ServerType.SSP
