@@ -385,6 +385,7 @@ class Args(parser: ArgParser) {
     val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
         Level.toLevel(this.toUpperCase(), Level.WARN) as Level
     }.default(Level.WARN)
+    val headers by parser.adding("-H", help = "A custom HTTP header to add to each request.")
 }
 
 class ArgsSerializer(): JsonSerializer<Args> {
