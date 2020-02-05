@@ -36,9 +36,7 @@ fun servedBy(appUrl: String, logger: Logger, headers: MutableList<Header> = muta
     if (url.host.matches("^.*\\.shinyapps\\.io$".toRegex()))
         return ServerType.SAI
 
-    val req = HttpGet(appUrl).apply {
-        headers.forEach { this.setHeader(it) }
-    }
+    val req = HttpGet(appUrl).addHeaders(headers)
     val resp = slurp(req)
 
     if (resp.hasHeader("x-ssp-xsrf") || resp.hasCookie("SSP-XSRF")) {
