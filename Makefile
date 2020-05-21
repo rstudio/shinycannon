@@ -21,14 +21,15 @@ BIN_FILE=$(OUT_DIR)/shinycannon-$(VERSION)-$(GIT_SHA).sh
 
 BUCKET_NAME=rstudio-shinycannon-build
 
-.PHONY: packages RELEASE.txt
+.PHONY: packages
 
 packages: $(RPM_RH_FILE) $(RPM_SUSE_FILE) $(DEB_FILE) $(JAR_FILE) $(BIN_FILE)
 
-# This is the uberjar produced and named by Maven. It's renamed to $(JAR_FILE),
-# which is the uberjar we upload to S3 and document using. The only difference
-# between the two is that the $(JAR_FILE) file name contains $(GIT_SHA).
-# $(VERSION_FILE) is embededed in the jar to provide the version at runtime.
+# This is the uberjar produced and named by Maven. It's renamed to
+# $(JAR_FILE), which is the uberjar we upload to GitHub and document
+# using. The only difference between the two is that the $(JAR_FILE)
+# file name contains $(GIT_SHA). $(VERSION_FILE) is embededed in the
+# jar to provide the version at runtime.
 $(MAVEN_UBERJAR):
 	mvn package
 	echo -n $(VERSION)-$(GIT_SHA) > $(VERSION_FILE)
@@ -64,20 +65,6 @@ $(JAR_FILE): $(MAVEN_UBERJAR)
 $(BIN_FILE): $(BINDIR)/shinycannon
 	mkdir -p $(dir $@)
 	cp $^ $@
-
-$(OUT_DIR)/RELEASE.txt:
-	mkdir -p $(dir $@)
-	echo $(shell date +"%Y-%m-%d-%T")_$(VERSION)-$(GIT_SHA) > $@
-
-# RELEASE_URLS.csv: RELEASE.txt
-# 	mkdir -p $(dir $@)
-# 	rm -f $@
-# 	echo version,sha,platform,file,url >> $@
-# 	echo $(VERSION),$(GIT_SHA),deb,$(DEB_FILE),https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/deb/$(DEB_FILE) >> $@
-# 	echo $(VERSION),$(GIT_SHA),rpm_suse,$(RPM_SUSE_FILE),https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/rpm/$(RPM_SUSE_FILE) >> $@
-# 	echo $(VERSION),$(GIT_SHA),rpm_rh,$(RPM_RH_FILE),https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/rpm/$(RPM_RH_FILE) >> $@
-# 	echo $(VERSION),$(GIT_SHA),jar,$(JAR_FILE),https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/jar/$(JAR_FILE) >> $@
-# 	echo $(VERSION),$(GIT_SHA),sh,$(BIN_FILE),https://s3.amazonaws.com/rstudio-shinycannon-build/$(shell cat $<)/bin/$(BIN_FILE) >> $@
 
 clean:
 	rm -rf package target
