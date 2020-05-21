@@ -12,3 +12,5 @@ jobs:
         run: docker build -t shinycannon-build .
       - name: Run Docker
         run: docker run -v $PWD:/workdir shinycannon-build make packages
+      - name: Show output
+        run: ls out
