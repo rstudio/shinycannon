@@ -7,8 +7,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Build
-        uses: rstudio/shinycannon-build-action@master
-        with:
-          outdir: 'out'
-      - name: Show
-        run: ls out
+        run: docker build -t build .
