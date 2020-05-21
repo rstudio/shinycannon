@@ -11,6 +11,8 @@ MANDIR=$(PREFIX)/share/man/man1
 
 FPM_ARGS=--iteration $(GIT_SHA) -f -s dir -n shinycannon -v $(VERSION) -C package .
 
+OUT_DIR=out
+
 RPM_RH_FILE=$(OUT_DIR)/shinycannon-$(VERSION)-$(GIT_SHA).x86_64.rpm
 RPM_SUSE_FILE=$(OUT_DIR)/shinycannon-$(VERSION)-suse-$(GIT_SHA).x86_64.rpm
 DEB_FILE=$(OUT_DIR)/shinycannon_$(VERSION)-$(GIT_SHA)_amd64.deb
@@ -19,9 +21,7 @@ BIN_FILE=$(OUT_DIR)/shinycannon-$(VERSION)-$(GIT_SHA).sh
 
 BUCKET_NAME=rstudio-shinycannon-build
 
-.PHONY: all packages RELEASE.txt
-
-all: packages
+.PHONY: packages RELEASE.txt
 
 packages: $(RPM_RH_FILE) $(RPM_SUSE_FILE) $(DEB_FILE) $(JAR_FILE) $(BIN_FILE)
 

@@ -15,7 +15,3 @@ ENV LC_ALL en_US.UTF-8
 
 # Install FPM (for building packages) and ronn (for making manpages)
 RUN gem install fpm:1.11.0 ronn:0.7.3
-
-COPY build.sh /build.sh
-
-ENTRYPOINT ["/build.sh"]
