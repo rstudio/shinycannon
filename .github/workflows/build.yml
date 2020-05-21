@@ -16,7 +16,7 @@ jobs:
         run: ls out
   release:
     needs: build
-    if: startsWith(github.ref, 'v')
+    if: startsWith(github.ref, 'refs/tags/v')
     name: Release
     runs-on: ubuntu-18.04
     steps:
