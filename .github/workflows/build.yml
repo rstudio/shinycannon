@@ -14,3 +14,20 @@ jobs:
         run: docker run -v $PWD:/workdir shinycannon-build make packages
       - name: Show output
         run: ls out
+  release:
+    needs: build
+    if: startsWith(github.ref, "v")
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release
+        run: |
+          set -x
+          assets=()
+          for asset in ./out/*; do
+            assets+=("-a" "$asset")
+          done
+          tag_name="${GITHUB_REF##*/}"
+          hub release create "${assets[@]}" -m "$tag_name" "$tag_name"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
