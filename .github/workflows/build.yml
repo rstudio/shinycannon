@@ -1,0 +1,14 @@
+name: Build
+on: [push]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Build
+        uses: rstudio/shinycannon-build-action
+        with:
+          outdir: 'out'
+      - name: Show
+        run: ls out
