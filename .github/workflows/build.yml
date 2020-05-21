@@ -11,4 +11,4 @@ jobs:
       - name: Build Docker image
         run: docker build -t shinycannon-build .
       - name: Run Docker
-        run: docker run -it shinycannon-build make packages
+        run: docker run shinycannon-build make packages
