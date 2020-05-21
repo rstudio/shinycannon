@@ -4,7 +4,7 @@ on: [push]
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -12,13 +12,13 @@ jobs:
         run: docker build -t shinycannon-build .
       - name: Run Docker
         run: docker run -v $PWD:/workdir shinycannon-build make packages
-      - name: Show output
+      - name: Show created artifacts
         run: ls out
   release:
     needs: build
-    if: startsWith(github.ref, "v")
+    if: startsWith(github.ref, 'v')
     name: Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     steps:
       - name: Create Release
         run: |
