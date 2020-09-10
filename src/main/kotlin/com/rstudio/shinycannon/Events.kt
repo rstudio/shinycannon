@@ -279,6 +279,9 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                         override fun onDisconnected(websocket: WebSocket, serverCloseFrame: WebSocketFrame, clientCloseFrame: WebSocketFrame, closedByServer: Boolean) {
                             // In normal operation, the server should never close the websocket.
                             if (closedByServer) {
+                                kotlin.io.println(websocket.toString())
+                                kotlin.io.println(serverCloseFrame.toString())
+                                kotlin.io.println(clientCloseFrame.toString())
                                 session.fail("Server closed websocket connection")
                             }
                         }

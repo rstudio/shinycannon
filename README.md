@@ -28,15 +28,17 @@ Next, you can build a .jar with:
 mvn package
 ```
 
-A file, `target/shinycannon-1.0.0-jar-with-dependencies.jar` will be created.
+A file, `target/shinycannon-1.1.0-jar-with-dependencies.jar` will be created.
 
 You can run it with something like:
 
 ```
-java -jar target/shinycannon-1.0.0-jar-with-dependencies.jar recording.log
+java -jar target/shinycannon-1.1.0-jar-with-dependencies.jar recording.log
 http://example.com/your/app
 
 ```
+
+If you are running against an app on RStudio Connect, an [RStudio Connect API Key](https://docs.rstudio.com/connect/user/api-keys/) is the easiest way to handle authentication. By default, `shinycannon` will pick up an RStudio Connect API Key in the `CONNECT_API_KEY` environment variable.
 
 ### Building Installers
 

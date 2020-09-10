@@ -250,11 +250,15 @@ class Stats() {
     }
 }
 
-fun getCreds() = listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
+fun getCreds(hasConnectApiKey: Boolean):Pair<String, String>? {
+    if (hasConnectApiKey) return null
+
+    return listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
         .mapNotNull { System.getenv(it) }
         .takeIf { it.size == 2 }
         ?.zipWithNext()
         ?.first()
+}
 
 val RECORDING_VERSION = 1L
 
@@ -263,6 +267,7 @@ class EnduranceTest(val argsStr: String,
                     val httpUrl: String,
                     val headers: MutableList<Header>,
                     val recording: File,
+                    val hasConnectApiKey: Boolean,
                     // Amount of time to wait between starting workers until target reached
                     val warmupInterval: Long = 0,
                     // Time to maintain target number of workers
@@ -270,7 +275,7 @@ class EnduranceTest(val argsStr: String,
                     // Number of workers to maintain
                     val numWorkers: Int,
                     val outputDir: File,
-                    val logger: Logger) {
+                    val logger: Logger) {                 
 
     val columnNames = arrayOf("session_id", "worker_id", "iteration", "event", "timestamp", "input_line_number", "comment")
 
@@ -281,8 +286,10 @@ class EnduranceTest(val argsStr: String,
         val rec = readRecording(recording, logger)
 
         val detectedType = servedBy(httpUrl, logger, headers)
-
+//TODO-akg: remove these
         logger.info("Detected target application type: ${detectedType.typeName}")
+        logger.info("Headers: ${headers.toString()}")
+        logger.info("JSON Args: ${argsJson}")
 
         if (detectedType != rec.props.targetType) {
             logger.warn("Recording made with '${rec.props.targetType.typeName}' but target looks like '${detectedType.typeName}'")
@@ -308,7 +315,7 @@ class EnduranceTest(val argsStr: String,
                 .toFile()
 
         fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
-            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, headers, recording, log, logger, getCreds())
+            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, headers, recording, log, logger, getCreds(hasConnectApiKey))
             val outputFile = makeOutputFile(sessionId, workerId, iterationId)
             outputFile.printWriter().use { out ->
                 out.println("# " + argsStr)
@@ -379,6 +386,13 @@ fun parseHeader(header: String): Header {
     return BasicHeader(name, value.replace("^\\s+", ""))
 }
 
+fun parseKey(key: String?): Header? {
+    if (key == null) return null
+    if (key.length == 0) return null
+
+    return BasicHeader("Authorization", "Key ${key}")
+}
+
 class Args(parser: ArgParser) {
     val recordingPath by parser.positional("Path to recording file")
     val appUrl by parser.positional("URL of the Shiny application to interact with")
@@ -403,6 +417,9 @@ class Args(parser: ArgParser) {
     val headers by parser.adding("-H", "--header", help = "A custom HTTP header in the form 'name: value' to add to each request.") {
         parseHeader(this)
     }
+    val connectApiKey by parser.storing("-K", "--key", help = "An RStudio Connect API key.") {
+        parseKey(this)
+    }.default(parseKey(System.getenv("CONNECT_API_KEY")))
 }
 
 class ArgsSerializer(): JsonSerializer<Args> {
@@ -417,6 +434,8 @@ class ArgsSerializer(): JsonSerializer<Args> {
                 "kotlin.Int?" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Int?)
                 "kotlin.Long" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Long)
                 "kotlin.Int" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Int)
+                "org.apache.http.Header?" -> jsonObject.addProperty(it.name, it.get(args).toString())
+                "kotlin.collections.MutableList<org.apache.http.Header>" -> jsonObject.addProperty(it.name, it.get(args).toString())
                 "java.math.BigDecimal!", "java.math.BigDecimal" -> jsonObject.addProperty(it.name, (it.get(args) as BigDecimal).toFloat())
                 else -> error("Don't know how to JSON-serialize argument type: ${it.returnType}")
             }
@@ -514,6 +533,7 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
                 environment variables:
                   SHINYCANNON_USER
                   SHINYCANNON_PASS
+                  CONNECT_API_KEY
 
                 version: ${getVersion()}
                 """.trimIndent()
@@ -556,6 +576,16 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
             appLogger.error("Uncaught exception on ${thread.name}", exception)
         }
 
+        var hasConnectApiKey = false
+        if (connectApiKey != null) {
+            if (servedBy(appUrl, appLogger, headers) == ServerType.RSC) {
+                hasConnectApiKey = true
+                kotlin.io.println("Adding headers.")
+                headers.add(connectApiKey as Header)
+                kotlin.io.println("Just set headers: ${headers.toString()}")
+            }
+        }
+
         val loadTest = EnduranceTest(
                 // Drop the original logpath from the arglist
                 args.asSequence().drop(1).joinToString(" "),
@@ -566,6 +596,7 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
                 appUrl,
                 headers,
                 recording,
+                hasConnectApiKey,
                 numWorkers = workers,
                 outputDir = output,
                 warmupInterval = computedStartInterval,
