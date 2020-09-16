@@ -107,6 +107,7 @@ class ShinySession(val sessionId: Int,
                    val recording: File,
                    var script: ArrayList<Event>,
                    val logger: Logger,
+                   val trueConnectApiKey: Header?,
                    val credentials: Pair<String, String>?) {
 
     // This is something like an interrupt. It's checked in every iteration of the run-loop.
@@ -150,11 +151,17 @@ class ShinySession(val sessionId: Int,
     fun replaceTokens(s: String) = replaceTokens(s, allowedTokens, tokenDictionary)
 
     private fun maybeLogin() {
-        credentials?.let { (username, password) ->
-            if (isProtected(httpUrl, headers)) {
-                postLogin(httpUrl, username, password, cookieStore, logger, headers = headers)
-            } else {
-                 logger.info("SHINYCANNON_USER and SHINYCANNON_PASS set, but target app doesn't require authentication.")
+        if (trueConnectApiKey != null) {
+            kotlin.io.println("Getting Cookies, right now: ${cookieStore.toString()}")
+            getConnectCookies(httpUrl, cookieStore, headers)
+            kotlin.io.println("Got cookies: ${cookieStore.toString()}")
+        } else {
+            credentials?.let { (username, password) ->
+                if (isProtected(httpUrl, headers)) {
+                    postLogin(httpUrl, username, password, cookieStore, logger, headers = headers)
+                } else {
+                     logger.info("SHINYCANNON_USER and SHINYCANNON_PASS set, but target app doesn't require authentication.")
+                }
             }
         }
     }
@@ -250,8 +257,8 @@ class Stats() {
     }
 }
 
-fun getCreds(hasConnectApiKey: Boolean):Pair<String, String>? {
-    if (hasConnectApiKey) return null
+fun getCreds(trueConnectApiKey: Header?):Pair<String, String>? {
+    if (trueConnectApiKey == null) return null
 
     return listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
         .mapNotNull { System.getenv(it) }
@@ -267,7 +274,7 @@ class EnduranceTest(val argsStr: String,
                     val httpUrl: String,
                     val headers: MutableList<Header>,
                     val recording: File,
-                    val hasConnectApiKey: Boolean,
+                    val trueConnectApiKey: Header?,
                     // Amount of time to wait between starting workers until target reached
                     val warmupInterval: Long = 0,
                     // Time to maintain target number of workers
@@ -315,7 +322,7 @@ class EnduranceTest(val argsStr: String,
                 .toFile()
 
         fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
-            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, headers, recording, log, logger, getCreds(hasConnectApiKey))
+            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, headers, recording, log, logger, trueConnectApiKey, getCreds(trueConnectApiKey))
             val outputFile = makeOutputFile(sessionId, workerId, iterationId)
             outputFile.printWriter().use { out ->
                 out.println("# " + argsStr)
@@ -576,12 +583,12 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
             appLogger.error("Uncaught exception on ${thread.name}", exception)
         }
 
-        var hasConnectApiKey = false
+        var trueConnectApiKey: Header? = null
         if (connectApiKey != null) {
             if (servedBy(appUrl, appLogger, headers) == ServerType.RSC) {
-                hasConnectApiKey = true
+                trueConnectApiKey = connectApiKey
                 kotlin.io.println("Adding headers.")
-                headers.add(connectApiKey as Header)
+                headers.add(trueConnectApiKey as Header)
                 kotlin.io.println("Just set headers: ${headers.toString()}")
             }
         }
@@ -596,7 +603,7 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
                 appUrl,
                 headers,
                 recording,
-                hasConnectApiKey,
+                trueConnectApiKey,
                 numWorkers = workers,
                 outputDir = output,
                 warmupInterval = computedStartInterval,

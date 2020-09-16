@@ -287,11 +287,19 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                         }
                     })
 
+                    kotlin.io.println("Websocket Cookie Headers: ${session
+                        .cookieStore
+                        .cookies
+                        .map { "${it.name}=${it.value}" }
+                        .joinToString("; ")}")
+
                     it.addHeader("Cookie", session
                             .cookieStore
                             .cookies
                             .map { "${it.name}=${it.value}" }
                             .joinToString("; "))
+
+                    session.headers.forEach { h -> kotlin.io.println("Adding header: ${h.name}, ${h.value}") }
 
                     session.headers.forEach { h -> it.addHeader(h.name, h.value) }
 

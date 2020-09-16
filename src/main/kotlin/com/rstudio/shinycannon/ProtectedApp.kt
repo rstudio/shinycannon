@@ -111,7 +111,7 @@ data class AuthContext(val cookies: BasicCookieStore,
 
 fun getCookies(request: HttpEntityEnclosingRequestBase,
                cookies: BasicCookieStore = BasicCookieStore(),
-               entity: HttpEntity): BasicCookieStore {
+               entity: HttpEntity?): BasicCookieStore {
 
     val cfg = RequestConfig.custom()
             .setCookieSpec(CookieSpecs.STANDARD)
@@ -122,6 +122,25 @@ fun getCookies(request: HttpEntityEnclosingRequestBase,
             .setDefaultRequestConfig(cfg)
             .build()
     request.entity = entity
+    client.execute(request).use {
+        check(setOf(200, 302).contains(it.statusLine.statusCode), {
+            "Received status ${it.statusLine.statusCode} attempting to get cookies"
+        })
+        return cookies
+    }
+}
+
+fun getCookiesGet(request: HttpGet, 
+                  cookies: BasicCookieStore = BasicCookieStore()): BasicCookieStore {
+    val cfg = RequestConfig.custom()
+        .setCookieSpec(CookieSpecs.STANDARD)
+        .build()
+    val client = HttpClientBuilder
+        .create()
+        .setDefaultCookieStore(cookies)
+        .setDefaultRequestConfig(cfg)
+        .build()
+
     client.execute(request).use {
         check(setOf(200, 302).contains(it.statusLine.statusCode), {
             "Received status ${it.statusLine.statusCode} attempting to get cookies"
@@ -182,4 +201,13 @@ fun postLogin(appUrl: String,
         ServerType.SSP -> loginSSP(context, username, password)
         else -> error("Can't log in to server type: '${server.typeName}'")
     }
+}
+
+fun getConnectCookies(appUrl: String,
+              cookies: BasicCookieStore,
+              headers: MutableList<Header> = mutableListOf()): BasicCookieStore {
+
+    val get = HttpGet(appUrl).addHeaders(headers)
+
+    return getCookiesGet(get, cookies)
 }
