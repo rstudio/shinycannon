@@ -61,6 +61,25 @@ sudo docker run -it --rm -v $PWD:/root -w /root shinycannon-build make packages
 
 > Note: you may or may not need `sudo`, depending on how you installed Docker.
 
+## Releasing
+
+In the past, release installers were built privately on internal
+RStudio infrastructure. Release artifacts were deployed to S3. Now,
+release artifacts are built with a GitHub Actions workflow and
+uploaded as GitHub release assets.
+
+Before releasing, first update `pom.xml` with the desired
+version. Then, to create a release and build corresponding release
+artifacts, create and push a tag prefixed with `v` such as
+`v1.2.3`. On push, the shinycannon `.jar` and a set of
+platform-specific installers will be created and uploaded.
+
+Releases are available under the "Releases" tab of the project GitHub
+page.
+
+After release artifacts are created, you should update the
+shinyloadtest documentation to point to the correct URLs.
+
 ## License
 
 MIT
