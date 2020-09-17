@@ -152,9 +152,7 @@ class ShinySession(val sessionId: Int,
 
     private fun maybeLogin() {
         if (trueConnectApiKey != null) {
-            kotlin.io.println("Getting Cookies, right now: ${cookieStore.toString()}")
             getConnectCookies(httpUrl, cookieStore, headers)
-            kotlin.io.println("Got cookies: ${cookieStore.toString()}")
         } else {
             credentials?.let { (username, password) ->
                 if (isProtected(httpUrl, headers)) {
@@ -293,10 +291,8 @@ class EnduranceTest(val argsStr: String,
         val rec = readRecording(recording, logger)
 
         val detectedType = servedBy(httpUrl, logger, headers)
-//TODO-akg: remove these
+        
         logger.info("Detected target application type: ${detectedType.typeName}")
-        logger.info("Headers: ${headers.toString()}")
-        logger.info("JSON Args: ${argsJson}")
 
         if (detectedType != rec.props.targetType) {
             logger.warn("Recording made with '${rec.props.targetType.typeName}' but target looks like '${detectedType.typeName}'")
@@ -587,9 +583,7 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
         if (connectApiKey != null) {
             if (servedBy(appUrl, appLogger, headers) == ServerType.RSC) {
                 trueConnectApiKey = connectApiKey
-                kotlin.io.println("Adding headers.")
                 headers.add(trueConnectApiKey as Header)
-                kotlin.io.println("Just set headers: ${headers.toString()}")
             }
         }
 

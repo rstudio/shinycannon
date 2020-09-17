@@ -38,7 +38,9 @@ http://example.com/your/app
 
 ```
 
-If you are running against an app on RStudio Connect, an [RStudio Connect API Key](https://docs.rstudio.com/connect/user/api-keys/) is the easiest way to handle authentication. By default, `shinycannon` will pick up an RStudio Connect API Key in the `CONNECT_API_KEY` environment variable.
+If you are running against an app on RStudio Connect, an [RStudio Connect API Key](https://docs.rstudio.com/connect/user/api-keys/) is the easiest way to handle authentication. By default, `shinycannon` will pick up an RStudio Connect API Key in the `CONNECT_API_KEY` environment variable. 
+
+Note that if the recording was done with an RStudio Connect API key, playback **MUST** be done with an RStudio Connect API key as well.
 
 ### Building Installers
 

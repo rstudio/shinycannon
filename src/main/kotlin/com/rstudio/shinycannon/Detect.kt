@@ -4,7 +4,6 @@ import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.Header
 import org.apache.http.client.methods.HttpGet
 import org.apache.logging.log4j.Logger
-import java.net.http.HttpHeaders
 import kotlin.system.exitProcess
 
 enum class ServerType(val typeName: String) {

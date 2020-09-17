@@ -279,27 +279,16 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                         override fun onDisconnected(websocket: WebSocket, serverCloseFrame: WebSocketFrame, clientCloseFrame: WebSocketFrame, closedByServer: Boolean) {
                             // In normal operation, the server should never close the websocket.
                             if (closedByServer) {
-                                kotlin.io.println(websocket.toString())
-                                kotlin.io.println(serverCloseFrame.toString())
-                                kotlin.io.println(clientCloseFrame.toString())
                                 session.fail("Server closed websocket connection")
                             }
                         }
                     })
-
-                    kotlin.io.println("Websocket Cookie Headers: ${session
-                        .cookieStore
-                        .cookies
-                        .map { "${it.name}=${it.value}" }
-                        .joinToString("; ")}")
 
                     it.addHeader("Cookie", session
                             .cookieStore
                             .cookies
                             .map { "${it.name}=${it.value}" }
                             .joinToString("; "))
-
-                    session.headers.forEach { h -> kotlin.io.println("Adding header: ${h.name}, ${h.value}") }
 
                     session.headers.forEach { h -> it.addHeader(h.name, h.value) }
 
@@ -371,7 +360,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                         ?.asJsonObject
                         ?.get("sessionId")
                         ?.asString
-                        ?: throw IllegalStateException("Expected sessionId from WS_RECV_INIT message")
+                        ?: throw IllegalStateException("Expected sessionId from WS_RECV_INIT message. Got: ${receivedStr}")
 
                 session.tokenDictionary["SESSION"] = sessionId
                 session.logger.debug("WS_RECV_INIT got SESSION: ${session.tokenDictionary["SESSION"]}")
