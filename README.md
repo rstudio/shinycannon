@@ -14,10 +14,10 @@ shinycannon is able to run on whatever platforms JVM is.
 However, to ease installation on various platforms, we produce package installer
 files using [fpm][fpm] in addition to a .jar file.
 
-### Building the `.jar`
+### Building
 
 Building packages for all platforms is best accomplished with [Docker][docker].
-We use the `Dockerfile` included in this repository.
+We'll use the `Dockerfile` included in this repository.
 
 First, build the Docker image with a command like the following:
 
@@ -25,7 +25,21 @@ First, build the Docker image with a command like the following:
 docker build -t shinycannon-build .
 ```
 
-Then, to build the `.jar` file and all packages (rpm/deb/sh):
+#### Executable
+
+To build the `.jar` file:
+
+```
+sudo docker run -it --rm -v $PWD:/root -w /root shinycannon-build make maven
+```
+> Note: you may or may not need `sudo`, depending on how you installed Docker.
+
+A file, `target/shinycannon-1.1.0-jar-with-dependencies.jar` will be created.
+
+
+#### Installers
+
+To build the `.jar` file and all packages (rpm/deb/sh):
 
 ```
 sudo docker run -it --rm -v $PWD:/root -w /root shinycannon-build make clean_out packages
@@ -33,7 +47,7 @@ sudo docker run -it --rm -v $PWD:/root -w /root shinycannon-build make clean_out
 
 > Note: you may or may not need `sudo`, depending on how you installed Docker.
 
-All built files will be stored in the `./out` folder
+All installer files will be stored in the `./out` folder
 
 ### Running
 

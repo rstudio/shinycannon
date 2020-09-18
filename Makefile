@@ -25,6 +25,8 @@ BUCKET_NAME=rstudio-shinycannon-build
 
 packages: $(RPM_RH_FILE) $(RPM_SUSE_FILE) $(DEB_FILE) $(JAR_FILE) $(BIN_FILE)
 
+maven: $(MAVEN_UBERJAR)
+
 # This is the uberjar produced and named by Maven. It's renamed to
 # $(JAR_FILE), which is the uberjar we upload to GitHub and document
 # using. The only difference between the two is that the $(JAR_FILE)
