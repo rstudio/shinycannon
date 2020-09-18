@@ -8,8 +8,8 @@ shinycannon(1) -- load generator for Shiny applications
 
 ## DESCRIPTION
 
-**shinycannon** generates load on Shiny applications by simulating one or more 
-users. The basis for each simulation is a recording <file> created using 
+**shinycannon** generates load on Shiny applications by simulating one or more
+users. The basis for each simulation is a recording <file> created using
 the [shinyloadtest](https://github.com/rstudio/shinyloadtest) R package.
 
 The number of users simulated during a run -- or "sessions" -- is given by the
@@ -52,10 +52,13 @@ following:
 
 ## OPTIONS
 
-  * `-h`, `--help`   
+  * `-h`, `--help`
     Show this help message and exit
 
-  * `--app-url` <url>:
+  * <file>:
+    [shinyloadtest](https://github.com/rstudio/shinyloadtest) recording file
+
+  * <url>:
     URL of the target Shiny application
 
   * `--workers` <num>:
@@ -64,14 +67,23 @@ following:
   * `--loaded-duration-minutes` <num>:
     Number of minutes each worker should continue simulating sessions after simulating its first session.
 
+  * `--start-interval` <milliseconds>:
+    Number of milliseconds to wait between starting workers.
+
+  * `-H`, `--header` <name: value>:
+    A custom HTTP header in the form 'name: value' to add to each request.
+
+  * `-K`, `--connect-api-key` <string>:
+    An RStudio Connect API key.
+
   * `--output-dir` <directory>:
     Path to directory to store session logs in for this test run
 
   * `--overwrite-output`:
     Whether or not to delete the output directory before starting, if it exists already
 
-  * `--start-interval` <milliseconds>:
-    Number of milliseconds to wait between starting workers.
+  * `--debug-log`:
+    Whether or not to store debug log output. Defaults to false.
 
   * `--log-level` <level>:
     Log level (default: warn, available include: debug, info, warn, error)
