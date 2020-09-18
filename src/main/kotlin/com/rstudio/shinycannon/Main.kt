@@ -291,7 +291,6 @@ class EnduranceTest(val argsStr: String,
         val rec = readRecording(recording, logger)
 
         val detectedType = servedBy(httpUrl, logger, headers)
-        
         logger.info("Detected target application type: ${detectedType.typeName}")
 
         if (detectedType != rec.props.targetType) {
@@ -579,6 +578,7 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
             appLogger.error("Uncaught exception on ${thread.name}", exception)
         }
 
+        // Add the connect api key as an auth header if testing RSC
         var trueConnectApiKey: Header? = null
         if (connectApiKey != null) {
             if (servedBy(appUrl, appLogger, headers) == ServerType.RSC) {

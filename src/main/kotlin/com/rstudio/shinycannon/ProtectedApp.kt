@@ -111,7 +111,7 @@ data class AuthContext(val cookies: BasicCookieStore,
 
 fun getCookies(request: HttpEntityEnclosingRequestBase,
                cookies: BasicCookieStore = BasicCookieStore(),
-               entity: HttpEntity?): BasicCookieStore {
+               entity: HttpEntity): BasicCookieStore {
 
     val cfg = RequestConfig.custom()
             .setCookieSpec(CookieSpecs.STANDARD)
@@ -130,6 +130,8 @@ fun getCookies(request: HttpEntityEnclosingRequestBase,
     }
 }
 
+// ping an RSC app and retrieve the cookies (load balancer, etc)
+// having a connect api key is not enough info for routing traffic
 fun getCookiesGet(request: HttpGet, 
                   cookies: BasicCookieStore = BasicCookieStore()): BasicCookieStore {
     val cfg = RequestConfig.custom()

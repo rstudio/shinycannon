@@ -360,7 +360,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                         ?.asJsonObject
                         ?.get("sessionId")
                         ?.asString
-                        ?: throw IllegalStateException("Expected sessionId from WS_RECV_INIT message. Got: ${receivedStr}")
+                        ?: throw IllegalStateException("Expected sessionId from WS_RECV_INIT message. Message: ${receivedStr}")
 
                 session.tokenDictionary["SESSION"] = sessionId
                 session.logger.debug("WS_RECV_INIT got SESSION: ${session.tokenDictionary["SESSION"]}")
