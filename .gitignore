@@ -5,3 +5,12 @@ package/
 shinycannon.1
 RELEASE.txt
 RELEASE_URLS.txt
+.m2
+.classpath
+.factorypath
+.rpmdb/
+.project
+.settings/
+_ignore/
+out/
+recording.log
