@@ -13,4 +13,4 @@ RELEASE_URLS.txt
 .settings/
 _ignore/
 out/
-recording.log
+recordings/
