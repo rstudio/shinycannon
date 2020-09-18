@@ -410,7 +410,7 @@ class Args(parser: ArgParser) {
     }
     val connectApiKey by parser.storing("-K", "--connect-api-key", help = "An RStudio Connect API key.") {
         parseKey(this)
-    }.default(parseKey(System.getenv("CONNECT_API_KEY")))
+    }.default(parseKey(System.getenv("SHINYCANNON_CONNECT_API_KEY")))
     val outputDir by parser.storing("Path to directory to store session logs in for this test run.")
             .default(Instant.now().let {
                 // : is illegal in Windows filenames
@@ -535,7 +535,7 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
                 environment variables:
                   SHINYCANNON_USER
                   SHINYCANNON_PASS
-                  CONNECT_API_KEY
+                  SHINYCANNON_CONNECT_API_KEY
 
                 version: ${getVersion()}
                 """.trimIndent()
