@@ -21,7 +21,7 @@ BIN_FILE=$(OUT_DIR)/shinycannon-$(VERSION)-$(GIT_SHA).sh
 
 BUCKET_NAME=rstudio-shinycannon-build
 
-.PHONY: packages
+.PHONY: packages clean_out clean maven
 
 packages: $(RPM_RH_FILE) $(RPM_SUSE_FILE) $(DEB_FILE) $(JAR_FILE) $(BIN_FILE)
 
