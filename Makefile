@@ -66,9 +66,10 @@ $(BIN_FILE): $(BINDIR)/shinycannon
 	mkdir -p $(dir $@)
 	cp $^ $@
 
-clean:
+clean_out:
+	rm -rf $(OUT_DIR)
+clean: clean_out
 	rm -rf package target
 	rm -f $(VERSION_FILE)
-	rm -rf $(OUT_DIR)
 
 print-%  : ; @echo $* = $($*)
