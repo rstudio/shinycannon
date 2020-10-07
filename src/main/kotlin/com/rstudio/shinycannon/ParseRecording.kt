@@ -57,3 +57,19 @@ fun readRecording(recording: File, logger: Logger): Recording {
             }
     return Recording(props, eventLog)
 }
+
+/*
+{"type":"WS_RECV","begin":"2020-09-17T20:50:11.435Z","message":"a[\"0#0|m|{\\\"custom\\\":
+{\\\"credentials\\\":{\\\"user\\\":\\\"alex.gold\\\",\\\"groups\\\":[\\\"Solutions Engineer\\\",\\\"Default\\\"]}}}\"]"}
+ */
+
+fun credentialLineExists(recording: Recording): Boolean {
+    return recording.eventLog
+            .filter { it.name() == "WS_RECV" }
+            .any {
+                parseMessage((it as Event.WS_RECV).message)
+                        ?.getAsJsonObject("custom")
+                        ?.has("credentials")
+                        ?: false
+            }
+}

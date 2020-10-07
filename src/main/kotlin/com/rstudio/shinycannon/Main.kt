@@ -289,6 +289,17 @@ class EnduranceTest(val argsStr: String,
 
     fun run() {
         val rec = readRecording(recording, logger)
+        val hasCredentialLine = credentialLineExists(rec)
+        if (trueConnectApiKey != null && !hasCredentialLine) {
+            //FIXME: throw something more appropriate
+            logger.error(("exploding"))
+            exitProcess(1)
+        }
+        if (trueConnectApiKey == null && hasCredentialLine) {
+            //FIXME: throw something more appropriate
+            logger.error(("exploding 2"))
+            exitProcess(1)
+        }
 
         val detectedType = servedBy(httpUrl, logger, headers)
         logger.info("Detected target application type: ${detectedType.typeName}")
