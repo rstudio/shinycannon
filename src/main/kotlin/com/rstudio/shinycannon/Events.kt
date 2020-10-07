@@ -149,8 +149,20 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
             client.execute(get).use { response ->
                 val body = EntityUtils.toString(response.entity)
                 val gotStatus = response.statusLine.statusCode
-                if (!this.statusEquals(gotStatus))
-                    error("Status $gotStatus received, expected $status, URL: $url, Response body: $body")
+                var extraText = ""
+                if (!this.statusEquals(gotStatus)) {
+                  if (this.status == 404) {
+                    if (session.trueConnectApiKey != null) {
+                      extraText = ". Please double check that you have the correct Connect API key and app combination."
+                    } else if (session.credentials != null) {
+                      extraText = ". Please double check that you have the correct username/password and app url combination."
+                    } else {
+                      // not using connect api key
+                      extraText = ". Please double check that you have the correct app url combination."
+                    }
+                  }
+                  error("Status $gotStatus received, expected $status, URL: $url, Response body: $body$extraText")
+                }
                 return body
             }
         }
