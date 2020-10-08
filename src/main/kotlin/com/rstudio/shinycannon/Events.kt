@@ -276,6 +276,9 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                         override fun onError(websocket: WebSocket, cause: WebSocketException) {
                             session.fail(cause)
                         }
+                        override fun handleCallbackError(websocket: WebSocket, cause: Throwable) {
+                            session.fail(cause)
+                        }
 
                         override fun onDisconnected(websocket: WebSocket, serverCloseFrame: WebSocketFrame, clientCloseFrame: WebSocketFrame, closedByServer: Boolean) {
                             // In normal operation, the server should never close the websocket.
