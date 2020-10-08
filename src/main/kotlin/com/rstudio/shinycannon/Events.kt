@@ -151,17 +151,19 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                 val gotStatus = response.statusLine.statusCode
                 var extraText = ""
                 if (!this.statusEquals(gotStatus)) {
-                  if (this.status == 404) {
+                  if (gotStatus == 404) {
                     if (session.trueConnectApiKey != null) {
-                      extraText = ". Please double check that you have the correct Connect API key and app combination."
+                      extraText = "\n\nAuthentication failed. Please check the RStudio Connect API key and app URL combination is correct."
                     } else if (session.credentials != null) {
-                      extraText = ". Please double check that you have the correct username/password and app url combination."
+                      extraText = "\n\nAuthentication failed. Please check the username/password and app URL combination is correct."
+                    } else if (servedBy(session.httpUrl, session.logger, session.headers) == ServerType.RSC) {
+                      extraText = "\n\nNo authentication found. Please give this app public access or create a new recording with an RStudio Connect API key."
                     } else {
                       // not using connect api key
-                      extraText = ". Please double check that you have the correct app url combination."
+                      extraText = "\n\nPlease check the app URL is correct."
                     }
                   }
-                  error("Status $gotStatus received, expected $status, URL: $url, Response body: $body$extraText")
+                  error("Status $gotStatus received, expected $status, URL: $url.\n\nResponse body: $body$extraText")
                 }
                 return body
             }

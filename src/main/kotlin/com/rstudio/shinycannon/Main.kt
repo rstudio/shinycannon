@@ -291,18 +291,21 @@ class EnduranceTest(val argsStr: String,
         val rec = readRecording(recording, logger)
         val hasCredentialLine = credentialLineExists(rec)
         if (trueConnectApiKey != null && !hasCredentialLine) {
-            //FIXME: throw something more appropriate
-            logger.error(("exploding"))
+            logger.error(("Unexpected RStudio Connect API key provided for playback. Recording was made without an API key."))
             exitProcess(1)
         }
         if (trueConnectApiKey == null && hasCredentialLine) {
-            //FIXME: throw something more appropriate
-            logger.error(("exploding 2"))
+            logger.error(("RStudio Connect API key expected with this recording, please provide one using the -K option."))
             exitProcess(1)
         }
 
         val detectedType = servedBy(httpUrl, logger, headers)
         logger.info("Detected target application type: ${detectedType.typeName}")
+
+        if (httpUrl.contains("#") && detectedType == ServerType.RSC) {
+            logger.error(("Please provide the content URL (solo mode) of this Shiny app."))
+            exitProcess(1)
+        }
 
         if (detectedType != rec.props.targetType) {
             logger.warn("Recording made with '${rec.props.targetType.typeName}' but target looks like '${detectedType.typeName}'")
