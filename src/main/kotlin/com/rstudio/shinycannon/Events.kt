@@ -152,7 +152,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                 var extraText = ""
                 if (!this.statusEquals(gotStatus)) {
                   if (gotStatus == 404) {
-                    if (session.trueConnectApiKey != null) {
+                    if (session.connectApiKeyProvided) {
                       extraText = "\n\nAuthentication failed. Please check the RStudio Connect API key and app URL combination is correct."
                     } else if (session.credentials != null) {
                       extraText = "\n\nAuthentication failed. Please check the username/password and app URL combination is correct."

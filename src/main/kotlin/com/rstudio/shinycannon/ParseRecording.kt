@@ -68,14 +68,3 @@ fun readRecording(recording: File, logger: Logger): Recording {
             }
     return Recording(props, eventLog)
 }
-
-fun credentialLineExists(recording: Recording): Boolean {
-    return recording.eventLog
-            .filter { it.name() == "WS_RECV" }
-            .any {
-                parseMessage((it as Event.WS_RECV).message)
-                        ?.getAsJsonObject("custom")
-                        ?.has("credentials")
-                        ?: false
-            }
-}

@@ -107,7 +107,7 @@ class ShinySession(val sessionId: Int,
                    val recording: File,
                    var script: ArrayList<Event>,
                    val logger: Logger,
-                   val trueConnectApiKey: Header?,
+                   val connectApiKeyProvided: Boolean,
                    val credentials: Pair<String, String>?) {
 
     // This is something like an interrupt. It's checked in every iteration of the run-loop.
@@ -151,7 +151,7 @@ class ShinySession(val sessionId: Int,
     fun replaceTokens(s: String) = replaceTokens(s, allowedTokens, tokenDictionary)
 
     private fun maybeLogin() {
-        if (trueConnectApiKey != null) {
+        if (connectApiKeyProvided) {
             getConnectCookies(httpUrl, cookieStore, headers)
         } else {
             credentials?.let { (username, password) ->
@@ -255,8 +255,8 @@ class Stats() {
     }
 }
 
-fun getCreds(trueConnectApiKey: Header?):Pair<String, String>? {
-    if (trueConnectApiKey == null) return null
+fun getCreds(connectApiKeyProvided: Boolean):Pair<String, String>? {
+    if (!connectApiKeyProvided) return null
 
     return listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
         .mapNotNull { System.getenv(it) }
@@ -272,7 +272,7 @@ class EnduranceTest(val argsStr: String,
                     val httpUrl: String,
                     val headers: MutableList<Header>,
                     val recording: File,
-                    val trueConnectApiKey: Header?,
+                    val connectApiKeyProvided: Boolean,
                     // Amount of time to wait between starting workers until target reached
                     val warmupInterval: Long = 0,
                     // Time to maintain target number of workers
@@ -289,12 +289,12 @@ class EnduranceTest(val argsStr: String,
 
     fun run() {
         val rec = readRecording(recording, logger)
-        val hasCredentialLine = credentialLineExists(rec)
-        if (trueConnectApiKey != null && !hasCredentialLine) {
+        val connectApiKeyRequired = rec.props.rscApiKeyRequired
+        if (connectApiKeyProvided && !connectApiKeyRequired) {
             logger.error(("Unexpected RStudio Connect API key provided for playback. Recording was made without an API key."))
             exitProcess(1)
         }
-        if (trueConnectApiKey == null && hasCredentialLine) {
+        if (!connectApiKeyProvided && connectApiKeyRequired) {
             logger.error(("RStudio Connect API key expected with this recording, please provide one using the -K option."))
             exitProcess(1)
         }
@@ -331,7 +331,7 @@ class EnduranceTest(val argsStr: String,
                 .toFile()
 
         fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
-            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, headers, recording, log, logger, trueConnectApiKey, getCreds(trueConnectApiKey))
+            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, headers, recording, log, logger, connectApiKeyProvided, getCreds(connectApiKeyProvided))
             val outputFile = makeOutputFile(sessionId, workerId, iterationId)
             outputFile.printWriter().use { out ->
                 out.println("# " + argsStr)
@@ -594,11 +594,11 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
         }
 
         // Add the connect api key as an auth header if testing RSC
-        var trueConnectApiKey: Header? = null
+        var connectApiKeyProvided = false
         if (connectApiKey != null) {
             if (servedBy(appUrl, appLogger, headers) == ServerType.RSC) {
-                trueConnectApiKey = connectApiKey
-                headers.add(trueConnectApiKey as Header)
+                connectApiKeyProvided = true
+                headers.add(connectApiKey as Header)
             }
         }
 
@@ -612,7 +612,7 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
                 appUrl,
                 headers,
                 recording,
-                trueConnectApiKey,
+                connectApiKeyProvided,
                 numWorkers = workers,
                 outputDir = output,
                 warmupInterval = computedStartInterval,
