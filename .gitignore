@@ -14,3 +14,5 @@ RELEASE_URLS.txt
 _ignore/
 out/
 recordings/
+
+test-logs-*
