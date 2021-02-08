@@ -151,7 +151,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                 val gotStatus = response.statusLine.statusCode
                 var extraText = ""
                 if (!this.statusEquals(gotStatus)) {
-                  if (gotStatus == 404) {
+                  if (gotStatus == 403 || gotStatus == 404) {
                     if (session.connectApiKeyProvided) {
                       extraText = "\n\nAuthentication failed. Please check the RStudio Connect API key and app URL combination is correct."
                     } else if (session.credentials != null) {
