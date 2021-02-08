@@ -109,7 +109,7 @@ data class AuthContext(val cookies: BasicCookieStore,
                        val inputs: Map<String, String>,
                        val loginUrl: String)
 
-fun getCookies(request: HttpEntityEnclosingRequestBase,
+fun getCookiesPost(request: HttpEntityEnclosingRequestBase,
                cookies: BasicCookieStore = BasicCookieStore(),
                entity: HttpEntity): BasicCookieStore {
 
@@ -132,7 +132,7 @@ fun getCookies(request: HttpEntityEnclosingRequestBase,
 
 // ping an RSC app and retrieve the cookies (load balancer, etc)
 // having a connect api key is not enough info for routing traffic
-fun getCookiesGet(request: HttpGet, 
+fun getCookiesGet(request: HttpGet,
                   cookies: BasicCookieStore = BasicCookieStore()): BasicCookieStore {
     val cfg = RequestConfig.custom()
         .setCookieSpec(CookieSpecs.STANDARD)
@@ -160,7 +160,7 @@ fun loginRSC(context: AuthContext, username: String, password: String): BasicCoo
 
     val post = HttpPost(context.loginUrl)
 
-    return getCookies(post, context.cookies, entity).apply {
+    return getCookiesPost(post, context.cookies, entity).apply {
         val authCookie = cookies.firstOrNull { it.name == "rsconnect" }
         checkNotNull(authCookie, { "Couldn't find RSC auth cookie" })
     }
@@ -179,7 +179,7 @@ fun loginSSP(context: AuthContext, username: String, password: String): BasicCoo
 
     val post = HttpPost(context.loginUrl)
 
-    return getCookies(post, context.cookies, entity).apply {
+    return getCookiesPost(post, context.cookies, entity).apply {
         val authCookie = cookies.firstOrNull { it.name == "session_state" }
         checkNotNull(authCookie, { "Couldn't find SSP auth cookie" })
     }

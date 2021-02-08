@@ -107,8 +107,7 @@ class ShinySession(val sessionId: Int,
                    val recording: File,
                    var script: ArrayList<Event>,
                    val logger: Logger,
-                   val connectApiKeyProvided: Boolean,
-                   val credentials: Pair<String, String>?) {
+                   val creds: Creds) {
 
     // This is something like an interrupt. It's checked in every iteration of the run-loop.
     // If it's non-null, the run-loop will terminate.
@@ -151,17 +150,21 @@ class ShinySession(val sessionId: Int,
     fun replaceTokens(s: String) = replaceTokens(s, allowedTokens, tokenDictionary)
 
     private fun maybeLogin() {
-        if (connectApiKeyProvided) {
-            getConnectCookies(httpUrl, cookieStore, headers)
+      // Connect API Key has preference
+      if (creds.hasConnectApiKey()) {
+        getConnectCookies(httpUrl, cookieStore, headers)
+        return
+      }
+
+      val user = creds.user
+      val pass = creds.pass
+      if (user != null && pass != null) {
+        if (isProtected(httpUrl, headers)) {
+          postLogin(httpUrl, user, pass, cookieStore, logger, headers = headers)
         } else {
-            credentials?.let { (username, password) ->
-                if (isProtected(httpUrl, headers)) {
-                    postLogin(httpUrl, username, password, cookieStore, logger, headers = headers)
-                } else {
-                     logger.info("SHINYCANNON_USER and SHINYCANNON_PASS set, but target app doesn't require authentication.")
-                }
-            }
+          logger.info("SHINYCANNON_USER and SHINYCANNON_PASS set, but target app doesn't require authentication.")
         }
+      }
     }
 
     private fun logFail(cause: Throwable, out: PrintWriter, stats: Stats, lineNumber: Int = 0) {
@@ -255,14 +258,46 @@ class Stats() {
     }
 }
 
-fun getCreds(connectApiKeyProvided: Boolean):Pair<String, String>? {
-    if (!connectApiKeyProvided) return null
+class Creds(val user: String?, val pass: String?, val connectApiKey: String?) {
+    fun hasUserPass(): Boolean {
+        return user != null && pass != null
+    }
+    fun hasConnectApiKey(): Boolean {
+        return connectApiKey != null
+    }
+    fun connectApiKeyHeader(): Header? {
+        if (connectApiKey == null) return null
+        if (connectApiKey.length == 0) return null
+        return BasicHeader("Authorization", "Key ${connectApiKey}")
+    }
+}
 
-    return listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
+fun getCreds():Creds {
+    val userPass = listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
         .mapNotNull { System.getenv(it) }
         .takeIf { it.size == 2 }
         ?.zipWithNext()
         ?.first()
+    var user = userPass?.first
+    var pass = userPass?.second
+
+    var apiKey = System.getenv("SHINYCANNON_CONNECT_API_KEY")
+    if (apiKey == null) {
+        apiKey = null
+    } else if (apiKey.length == 0) {
+        apiKey = null
+    }
+    // remove user/pass if apikey provided
+    if (apiKey != null) {
+      user = null
+      pass = null
+    }
+
+  return Creds(
+      user = user,
+      pass = pass,
+      connectApiKey = apiKey
+  )
 }
 
 val RECORDING_VERSION = 1L
@@ -272,7 +307,7 @@ class EnduranceTest(val argsStr: String,
                     val httpUrl: String,
                     val headers: MutableList<Header>,
                     val recording: File,
-                    val connectApiKeyProvided: Boolean,
+                    val creds: Creds,
                     // Amount of time to wait between starting workers until target reached
                     val warmupInterval: Long = 0,
                     // Time to maintain target number of workers
@@ -290,11 +325,11 @@ class EnduranceTest(val argsStr: String,
     fun run() {
         val rec = readRecording(recording, logger)
         val connectApiKeyRequired = rec.props.rscApiKeyRequired
-        if (connectApiKeyProvided && !connectApiKeyRequired) {
+        if (creds.hasConnectApiKey() && !connectApiKeyRequired) {
             logger.error(("Unexpected RStudio Connect API key provided for playback. Recording was made without an API key."))
             exitProcess(1)
         }
-        if (!connectApiKeyProvided && connectApiKeyRequired) {
+        if (!creds.hasConnectApiKey() && connectApiKeyRequired) {
             logger.error(("RStudio Connect API key expected with this recording, please provide one using the -K option."))
             exitProcess(1)
         }
@@ -331,7 +366,7 @@ class EnduranceTest(val argsStr: String,
                 .toFile()
 
         fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
-            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, headers, recording, log, logger, connectApiKeyProvided, getCreds(connectApiKeyProvided))
+            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, headers, recording, log, logger, creds)
             val outputFile = makeOutputFile(sessionId, workerId, iterationId)
             outputFile.printWriter().use { out ->
                 out.println("# " + argsStr)
@@ -402,12 +437,6 @@ fun parseHeader(header: String): Header {
     return BasicHeader(name, value.replace("^\\s+", ""))
 }
 
-fun parseKey(key: String?): Header? {
-    if (key == null) return null
-    if (key.length == 0) return null
-
-    return BasicHeader("Authorization", "Key ${key}")
-}
 
 class Args(parser: ArgParser) {
     val recordingPath by parser.positional("Path to recording file")
@@ -422,20 +451,20 @@ class Args(parser: ArgParser) {
     val headers by parser.adding("-H", "--header", help = "A custom HTTP header in the form 'name: value' to add to each request.") {
         parseHeader(this)
     }
-    val connectApiKey by parser.storing("-K", "--connect-api-key", help = "An RStudio Connect API key.") {
-        parseKey(this)
-    }.default(parseKey(System.getenv("SHINYCANNON_CONNECT_API_KEY")))
     val outputDir by parser.storing("Path to directory to store session logs in for this test run.")
-            .default(Instant.now().let {
-                // : is illegal in Windows filenames
-                val inst = it.toString().replace(":", "_")
-                "test-logs-${inst}"
-            })
+    .default(Instant.now().let {
+      // : is illegal in Windows filenames
+      val inst = it.toString().replace(":", "_")
+      "test-logs-${inst}"
+    })
     val overwriteOutput by parser.flagging("Delete the output directory before starting, if it exists already.")
     val debugLog by parser.flagging("Produce a debug.log in the output directory. File can get very large. Defaults to false.")
     val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
-        Level.toLevel(this.toUpperCase(), Level.WARN) as Level
+      Level.toLevel(this.toUpperCase(), Level.WARN) as Level
     }.default(Level.WARN)
+
+    // retrieving here, but values are not parsed from directly supplied args
+    val creds = getCreds()
 }
 
 class ArgsSerializer(): JsonSerializer<Args> {
@@ -594,11 +623,11 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
         }
 
         // Add the connect api key as an auth header if testing RSC
-        var connectApiKeyProvided = false
-        if (connectApiKey != null) {
-            if (servedBy(appUrl, appLogger, headers) == ServerType.RSC) {
-                connectApiKeyProvided = true
-                headers.add(connectApiKey as Header)
+        if (servedBy(appUrl, appLogger, headers) == ServerType.RSC) {
+            val connectApiKeyHeader = creds.connectApiKeyHeader()
+            if (connectApiKeyHeader != null) {
+                // add auth headers only once
+                headers.add(connectApiKeyHeader)
             }
         }
 
@@ -612,7 +641,7 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
                 appUrl,
                 headers,
                 recording,
-                connectApiKeyProvided,
+                creds,
                 numWorkers = workers,
                 outputDir = output,
                 warmupInterval = computedStartInterval,

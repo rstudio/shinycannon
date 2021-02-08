@@ -152,12 +152,12 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                 var extraText = ""
                 if (!this.statusEquals(gotStatus)) {
                   if (gotStatus == 403 || gotStatus == 404) {
-                    if (session.connectApiKeyProvided) {
-                      extraText = "\n\nAuthentication failed. Please check the RStudio Connect API key and app URL combination is correct."
-                    } else if (session.credentials != null) {
-                      extraText = "\n\nAuthentication failed. Please check the username/password and app URL combination is correct."
+                    if (session.creds.hasConnectApiKey()) {
+                      extraText = "\n\nRequest failed. Please check the RStudio Connect API key and app URL combination is correct."
+                    } else if (session.creds.hasUserPass()) {
+                      extraText = "\n\nRequest failed. Please check the username/password and app URL combination is correct."
                     } else if (servedBy(session.httpUrl, session.logger, session.headers) == ServerType.RSC) {
-                      extraText = "\n\nNo authentication found. Please give this app public access or create a new recording with an RStudio Connect API key."
+                      extraText = "\n\nRequest failed. No authentication provided. Please give this app public access or create a new recording with an RStudio Connect API key."
                     } else {
                       // not using connect api key
                       extraText = "\n\nPlease check the app URL is correct."
@@ -303,7 +303,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                             .cookies
                             .map { "${it.name}=${it.value}" }
                             .joinToString("; "))
-
+                    // copy over all headers into the websocket
                     session.headers.forEach { h -> it.addHeader(h.name, h.value) }
 
                     it.addHeader("user-agent", getUserAgent())
