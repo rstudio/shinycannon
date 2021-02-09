@@ -55,12 +55,12 @@ You can run `shinycannon` with something like:
 
 ```bash
 java -jar \
-  ./target/shinycannon-1.1.0-jar-with-dependencies.jar \
+  ./out/shinycannon-1.1.0-GITSHA.jar \
   recording.log \
   http://example.com/your/app
 ```
 
-If you are running against an app on RStudio Connect, an [RStudio Connect API Key](https://docs.rstudio.com/connect/user/api-keys/) is the easiest way to handle authentication. You can set this value using options `-K` or `--connect-api-key`  Set the environment variable `SHINYCANNON_CONNECT_API_KEY` with your Connect API Key.
+If you are running against an app on RStudio Connect, an [RStudio Connect API Key](https://docs.rstudio.com/connect/user/api-keys/) is the easiest way to handle authentication. Please visit [Load Testing Authenticated Apps](https://rstudio.github.io/shinyloadtest/articles/load-testing-authenticated-apps.html#load-testing) for examples on how to safely set a sensitive environment variable such as `SHINYCANNON_CONNECT_API_KEY`.
 
 > Note: that if the recording was done with an RStudio Connect API key, playback **MUST** be done with an RStudio Connect API key.  Similarly, if a recording does **NOT** use an API key, playback must **NOT** use an API key.
 
@@ -91,4 +91,4 @@ MIT
 [kotlin]: https://kotlinlang.org/
 [jvm]: https://en.wikipedia.org/wiki/Java_virtual_machine
 [fpm]: https://github.com/jordansissel/fpm
-[docker]: https://github.com/jordansissel/fpm
+[docker]: https://www.docker.com/

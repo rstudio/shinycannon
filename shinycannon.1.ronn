@@ -73,9 +73,6 @@ following:
   * `-H`, `--header` <name: value>:
     A custom HTTP header in the form 'name: value' to add to each request.
 
-  * `-K`, `--connect-api-key` <string>:
-    An RStudio Connect API key.
-
   * `--output-dir` <directory>:
     Path to directory to store session logs in for this test run
 
@@ -87,6 +84,12 @@ following:
 
   * `--log-level` <level>:
     Log level (default: warn, available include: debug, info, warn, error)
+
+## AUTHENTICATION
+
+Because credentials are not stored in recordings, a username and password or RStudio Connect API Key must be supplied to `shinycannon` in order to load test authenticated applications.
+
+`shinycannon` does not have `--user`, `--password`, or `--connect-api-key` arguments for security reasons. Instead, the `SHINYCANNON_USER` and `SHINYCANNON_PASS` or `SHINYCANNON_CONNECT_API_KEY` environment variables may be set. `SHINYCANNON_CONNECT_API_KEY` will take preference over `SHINYCANNON_USER` and `SHINYCANNON_PASS`.
 
 ## BUGS
 
