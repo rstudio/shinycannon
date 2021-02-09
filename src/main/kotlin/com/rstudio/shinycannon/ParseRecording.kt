@@ -5,7 +5,7 @@ import java.io.File
 import java.util.regex.Pattern
 import kotlin.system.exitProcess
 
-data class Props(val version: Long, val targetUrl: String, val targetType: ServerType)
+data class Props(val version: Long, val targetUrl: String, val targetType: ServerType, val rscApiKeyRequired: Boolean)
 
 data class Recording(val props: Props, val eventLog: ArrayList<Event>)
 
@@ -43,7 +43,18 @@ fun readProps(lines: List<String>, logger: Logger): Props {
 
     val versionNum = props["version"]!!.toLong()
 
-    return Props(versionNum, props["target_url"]!!, typeFromName(props["target_type"]!!))
+    val rscApiKeyRequired =
+      if (props["rscApiKeyRequired"] != null)
+        props["rscApiKeyRequired"]!!.toBoolean()
+      else
+        false
+
+    return Props(
+      versionNum,
+      props["target_url"]!!,
+      typeFromName(props["target_type"]!!),
+      rscApiKeyRequired
+    )
 }
 
 fun readRecording(recording: File, logger: Logger): Recording {

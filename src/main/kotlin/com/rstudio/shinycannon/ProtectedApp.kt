@@ -1,6 +1,7 @@
 package com.rstudio.shinycannon
 
 import net.moznion.uribuildertiny.URIBuilderTiny
+import org.apache.http.Header
 import org.apache.http.HttpEntity
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
@@ -76,8 +77,8 @@ fun xpath(docString: String, query: String): Array<Node> {
 // XML collection type produced by the XPath API.
 operator fun NamedNodeMap.get(itemName: String): String = this.getNamedItem(itemName).nodeValue
 
-fun isProtected(appUrl: String): Boolean {
-    return setOf(403, 404).contains(slurp(HttpGet(appUrl)).statusCode)
+fun isProtected(appUrl: String, headers: MutableList<Header> = mutableListOf()): Boolean {
+    return setOf(403, 404).contains(slurp(HttpGet(appUrl).addHeaders(headers)).statusCode)
 }
 
 // Returns a Map of hidden inputs that must be posted along with
@@ -108,7 +109,7 @@ data class AuthContext(val cookies: BasicCookieStore,
                        val inputs: Map<String, String>,
                        val loginUrl: String)
 
-fun getCookies(request: HttpEntityEnclosingRequestBase,
+fun getCookiesPost(request: HttpEntityEnclosingRequestBase,
                cookies: BasicCookieStore = BasicCookieStore(),
                entity: HttpEntity): BasicCookieStore {
 
@@ -129,6 +130,27 @@ fun getCookies(request: HttpEntityEnclosingRequestBase,
     }
 }
 
+// ping an RSC app and retrieve the cookies (load balancer, etc)
+// having a connect api key is not enough info for routing traffic
+fun getCookiesGet(request: HttpGet,
+                  cookies: BasicCookieStore = BasicCookieStore()): BasicCookieStore {
+    val cfg = RequestConfig.custom()
+        .setCookieSpec(CookieSpecs.STANDARD)
+        .build()
+    val client = HttpClientBuilder
+        .create()
+        .setDefaultCookieStore(cookies)
+        .setDefaultRequestConfig(cfg)
+        .build()
+
+    client.execute(request).use {
+        check(setOf(200, 302).contains(it.statusLine.statusCode), {
+            "Received status ${it.statusLine.statusCode} attempting to get cookies"
+        })
+        return cookies
+    }
+}
+
 fun loginRSC(context: AuthContext, username: String, password: String): BasicCookieStore {
 
     val entity = com.google.gson.JsonObject().also {
@@ -138,7 +160,7 @@ fun loginRSC(context: AuthContext, username: String, password: String): BasicCoo
 
     val post = HttpPost(context.loginUrl)
 
-    return getCookies(post, context.cookies, entity).apply {
+    return getCookiesPost(post, context.cookies, entity).apply {
         val authCookie = cookies.firstOrNull { it.name == "rsconnect" }
         checkNotNull(authCookie, { "Couldn't find RSC auth cookie" })
     }
@@ -157,15 +179,20 @@ fun loginSSP(context: AuthContext, username: String, password: String): BasicCoo
 
     val post = HttpPost(context.loginUrl)
 
-    return getCookies(post, context.cookies, entity).apply {
+    return getCookiesPost(post, context.cookies, entity).apply {
         val authCookie = cookies.firstOrNull { it.name == "session_state" }
         checkNotNull(authCookie, { "Couldn't find SSP auth cookie" })
     }
 }
 
-fun postLogin(appUrl: String, username: String, password: String, cookies: BasicCookieStore, logger: Logger): BasicCookieStore {
+fun postLogin(appUrl: String,
+              username: String,
+              password: String,
+              cookies: BasicCookieStore,
+              logger: Logger,
+              headers: MutableList<Header> = mutableListOf()): BasicCookieStore {
 
-    val resp = slurp(HttpGet(appUrl), cookies = cookies)
+    val resp = slurp(HttpGet(appUrl).addHeaders(headers), cookies = cookies)
     val server = servedBy(appUrl, logger)
     val inputs = getInputs(resp, server)
     val loginUrl = loginUrlFor(appUrl, server)
@@ -176,4 +203,13 @@ fun postLogin(appUrl: String, username: String, password: String, cookies: Basic
         ServerType.SSP -> loginSSP(context, username, password)
         else -> error("Can't log in to server type: '${server.typeName}'")
     }
+}
+
+fun getConnectCookies(appUrl: String,
+              cookies: BasicCookieStore,
+              headers: MutableList<Header> = mutableListOf()): BasicCookieStore {
+
+    val get = HttpGet(appUrl).addHeaders(headers)
+
+    return getCookiesGet(get, cookies)
 }

@@ -14,48 +14,56 @@ shinycannon is able to run on whatever platforms JVM is.
 However, to ease installation on various platforms, we produce package installer
 files using [fpm][fpm] in addition to a .jar file.
 
-### Building the .jar
-
-1. Install the JDK: https://openjdk.java.net/
-1. Install Maven: https://maven.apache.org/
-
-> Your platform's package installer, such as homebrew/apt/rpm/etc, is probably
-> the best way to install the JDK and Maven on your machine.
-
-Next, you can build a .jar with:
-
-```
-mvn package
-```
-
-A file, `target/shinycannon-1.0.0-jar-with-dependencies.jar` will be created.
-
-You can run it with something like:
-
-```
-java -jar target/shinycannon-1.0.0-jar-with-dependencies.jar recording.log
-http://example.com/your/app
-
-```
-
-### Building Installers
+### Building
 
 Building packages for all platforms is best accomplished with [Docker][docker].
-We use the `Dockerfile` included in this repository.
+We'll use the `Dockerfile` included in this repository.
 
-First, build an image with a command like the following:
+First, build the Docker image with a command like the following:
 
 ```
 docker build -t shinycannon-build .
 ```
 
-Then, to build the .jar and all packages (rpm/deb/sh):
+#### Executable
+
+To build the `.jar` file:
 
 ```
-sudo docker run -it --rm -v $PWD:/root -w /root shinycannon-build make packages
+sudo docker run -it --rm -v $PWD:/root -w /root shinycannon-build make maven
+```
+> Note: you may or may not need `sudo`, depending on how you installed Docker.
+
+A file, `target/shinycannon-1.1.0-jar-with-dependencies.jar` will be created.
+
+
+#### Installers
+
+To build the `.jar` file and all packages (rpm/deb/sh):
+
+```
+sudo docker run -it --rm -v $PWD:/root -w /root shinycannon-build make clean_out packages
 ```
 
 > Note: you may or may not need `sudo`, depending on how you installed Docker.
+
+All installer files will be stored in the `./out` folder
+
+### Running
+
+You can run `shinycannon` with something like:
+
+```bash
+java -jar \
+  ./out/shinycannon-1.1.0-GITSHA.jar \
+  recording.log \
+  http://example.com/your/app
+```
+
+If you are running against an app on RStudio Connect, an [RStudio Connect API Key](https://docs.rstudio.com/connect/user/api-keys/) is the easiest way to handle authentication. Please visit [Load Testing Authenticated Apps](https://rstudio.github.io/shinyloadtest/articles/load-testing-authenticated-apps.html#load-testing) for examples on how to safely set a sensitive environment variable such as `SHINYCANNON_CONNECT_API_KEY`.
+
+> Note: that if the recording was done with an RStudio Connect API key, playback **MUST** be done with an RStudio Connect API key.  Similarly, if a recording does **NOT** use an API key, playback must **NOT** use an API key.
+
 
 ## Releasing
 
@@ -83,4 +91,4 @@ MIT
 [kotlin]: https://kotlinlang.org/
 [jvm]: https://en.wikipedia.org/wiki/Java_virtual_machine
 [fpm]: https://github.com/jordansissel/fpm
-[docker]: https://github.com/jordansissel/fpm
+[docker]: https://www.docker.com/

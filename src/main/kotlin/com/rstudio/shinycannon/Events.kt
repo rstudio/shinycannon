@@ -2,7 +2,6 @@ package com.rstudio.shinycannon
 
 import com.google.gson.JsonParser
 import com.neovisionaries.ws.client.*
-import net.moznion.uribuildertiny.URIBuilderTiny
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.HttpGet
@@ -10,9 +9,9 @@ import org.apache.http.client.methods.HttpPost
 import org.apache.http.entity.FileEntity
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.util.EntityUtils
+import org.joda.time.Instant
 import java.io.PrintWriter
 import java.nio.file.FileSystems
-import org.joda.time.Instant
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
@@ -146,12 +145,26 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                     .setDefaultRequestConfig(cfg)
                     .setUserAgent(getUserAgent())
                     .build()
-            val get = HttpGet(url)
+            val get = HttpGet(url).addHeaders(session.headers)
             client.execute(get).use { response ->
                 val body = EntityUtils.toString(response.entity)
                 val gotStatus = response.statusLine.statusCode
-                if (!this.statusEquals(gotStatus))
-                    error("Status $gotStatus received, expected $status, URL: $url, Response body: $body")
+                var extraText = ""
+                if (!this.statusEquals(gotStatus)) {
+                  if (gotStatus == 403 || gotStatus == 404) {
+                    if (session.creds.hasConnectApiKey()) {
+                      extraText = "\n\nRequest failed. Please check the RStudio Connect API key and app URL combination is correct."
+                    } else if (session.creds.hasUserPass()) {
+                      extraText = "\n\nRequest failed. Please check the username/password and app URL combination is correct."
+                    } else if (servedBy(session.httpUrl, session.logger, session.headers) == ServerType.RSC) {
+                      extraText = "\n\nRequest failed. No authentication provided. Please give this app public access or create a new recording with an RStudio Connect API key."
+                    } else {
+                      // not using connect api key
+                      extraText = "\n\nPlease check the app URL is correct."
+                    }
+                  }
+                  error("Status $gotStatus received, expected $status, URL: $url.\n\nResponse body: $body$extraText")
+                }
                 return body
             }
         }
@@ -226,7 +239,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                             .setDefaultRequestConfig(cfg)
                             .setUserAgent(getUserAgent())
                             .build()
-                    val post = HttpPost(url)
+                    val post = HttpPost(url).addHeaders(session.headers)
 
                     if (datafile != null) {
                         val parentDir = session.recording.toPath().parent ?: FileSystems.getDefault().getPath(".")
@@ -293,6 +306,8 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                             .cookies
                             .map { "${it.name}=${it.value}" }
                             .joinToString("; "))
+                    // copy over all headers into the websocket
+                    session.headers.forEach { h -> it.addHeader(h.name, h.value) }
 
                     it.addHeader("user-agent", getUserAgent())
 
@@ -362,7 +377,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                         ?.asJsonObject
                         ?.get("sessionId")
                         ?.asString
-                        ?: throw IllegalStateException("Expected sessionId from WS_RECV_INIT message")
+                        ?: throw IllegalStateException("Expected sessionId from WS_RECV_INIT message. Message: ${receivedStr}")
 
                 session.tokenDictionary["SESSION"] = sessionId
                 session.logger.debug("WS_RECV_INIT got SESSION: ${session.tokenDictionary["SESSION"]}")

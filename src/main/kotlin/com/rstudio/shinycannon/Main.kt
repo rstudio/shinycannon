@@ -7,28 +7,29 @@ import com.xenomachina.argparser.DefaultHelpFormatter
 import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
 import net.moznion.uribuildertiny.URIBuilderTiny
+import org.apache.http.Header
+import org.apache.http.client.methods.HttpRequestBase
 import org.apache.http.impl.client.BasicCookieStore
+import org.apache.http.message.BasicHeader
 import org.apache.logging.log4j.Level
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import org.apache.logging.log4j.core.Filter
 import org.apache.logging.log4j.core.config.Configurator
 import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory
+import org.joda.time.Instant
 import java.io.File
 import java.io.PrintWriter
-import java.lang.Exception
 import java.lang.reflect.Type
 import java.math.BigDecimal
 import java.nio.file.Paths
 import java.security.SecureRandom
-import org.joda.time.Instant
 import java.util.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Pattern
-import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.system.exitProcess
@@ -104,15 +105,20 @@ sealed class WSMessage() {
     data class Error(val err: Throwable): WSMessage()
 }
 
+fun <T : HttpRequestBase> T.addHeaders(headers: List<Header>): T {
+    return headers.fold(this, { req, h -> req.apply { this.addHeader(h) }})
+}
+
 // Represents a single "user" during the course of a LoadTest.
 class ShinySession(val sessionId: Int,
                    val workerId: Int,
                    val iterationId: Int,
                    val httpUrl: String,
+                   val headers: MutableList<Header>,
                    val recording: File,
                    var script: ArrayList<Event>,
                    val logger: Logger,
-                   val credentials: Pair<String, String>?) {
+                   val creds: Creds) {
 
     // This is something like an interrupt. It's checked in every iteration of the run-loop.
     // If it's non-null, the run-loop will terminate.
@@ -155,13 +161,21 @@ class ShinySession(val sessionId: Int,
     fun replaceTokens(s: String) = replaceTokens(s, allowedTokens, tokenDictionary)
 
     private fun maybeLogin() {
-        credentials?.let { (username, password) ->
-            if (isProtected(httpUrl)) {
-                postLogin(httpUrl, username, password, cookieStore, logger)
-            } else {
-                 logger.info("SHINYCANNON_USER and SHINYCANNON_PASS set, but target app doesn't require authentication.")
-            }
+      // Connect API Key has preference
+      if (creds.hasConnectApiKey()) {
+        getConnectCookies(httpUrl, cookieStore, headers)
+        return
+      }
+
+      val user = creds.user
+      val pass = creds.pass
+      if (user != null && pass != null) {
+        if (isProtected(httpUrl, headers)) {
+          postLogin(httpUrl, user, pass, cookieStore, logger, headers = headers)
+        } else {
+          logger.info("SHINYCANNON_USER and SHINYCANNON_PASS set, but target app doesn't require authentication.")
         }
+      }
     }
 
     private fun logFail(cause: Throwable, out: PrintWriter, stats: Stats, lineNumber: Int = 0) {
@@ -255,18 +269,56 @@ class Stats() {
     }
 }
 
-fun getCreds() = listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
+class Creds(val user: String?, val pass: String?, val connectApiKey: String?) {
+    fun hasUserPass(): Boolean {
+        return user != null && pass != null
+    }
+    fun hasConnectApiKey(): Boolean {
+        return connectApiKey != null
+    }
+    fun connectApiKeyHeader(): Header? {
+        if (connectApiKey == null) return null
+        if (connectApiKey.length == 0) return null
+        return BasicHeader("Authorization", "Key ${connectApiKey}")
+    }
+}
+
+fun getCreds():Creds {
+    val userPass = listOf("SHINYCANNON_USER", "SHINYCANNON_PASS")
         .mapNotNull { System.getenv(it) }
         .takeIf { it.size == 2 }
         ?.zipWithNext()
         ?.first()
+    var user = userPass?.first
+    var pass = userPass?.second
+
+    var apiKey = System.getenv("SHINYCANNON_CONNECT_API_KEY")
+    if (apiKey == null) {
+        apiKey = null
+    } else if (apiKey.length == 0) {
+        apiKey = null
+    }
+    // remove user/pass if apikey provided
+    if (apiKey != null) {
+      user = null
+      pass = null
+    }
+
+    return Creds(
+      user = user,
+      pass = pass,
+      connectApiKey = apiKey
+    )
+}
 
 val RECORDING_VERSION = 1L
 
 class EnduranceTest(val argsStr: String,
                     val argsJson: String,
                     val httpUrl: String,
+                    val headers: MutableList<Header>,
                     val recording: File,
+                    val creds: Creds,
                     // Amount of time to wait between starting workers until target reached
                     val warmupInterval: Long = 0,
                     // Time to maintain target number of workers
@@ -283,10 +335,23 @@ class EnduranceTest(val argsStr: String,
 
     fun run() {
         val rec = readRecording(recording, logger)
+        val connectApiKeyRequired = rec.props.rscApiKeyRequired
+        if (creds.hasConnectApiKey() && !connectApiKeyRequired) {
+            logger.error(("Unexpected RStudio Connect API key provided for playback. Recording was made without an API key."))
+            exitProcess(1)
+        }
+        if (!creds.hasConnectApiKey() && connectApiKeyRequired) {
+            logger.error(("RStudio Connect API key expected with this recording, please provide one using the -K option."))
+            exitProcess(1)
+        }
 
-        val detectedType = servedBy(httpUrl, logger)
-
+        val detectedType = servedBy(httpUrl, logger, headers)
         logger.info("Detected target application type: ${detectedType.typeName}")
+
+        if (httpUrl.contains("#") && detectedType == ServerType.RSC) {
+            logger.error(("Please provide the content URL (solo mode) of this Shiny app."))
+            exitProcess(1)
+        }
 
         if (detectedType != rec.props.targetType) {
             logger.warn("Recording made with '${rec.props.targetType.typeName}' but target looks like '${detectedType.typeName}'")
@@ -312,7 +377,7 @@ class EnduranceTest(val argsStr: String,
                 .toFile()
 
         fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
-            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, recording, log, logger, getCreds())
+            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, headers, recording, log, logger, creds)
             val outputFile = makeOutputFile(sessionId, workerId, iterationId)
             outputFile.printWriter().use { out ->
                 out.println("# " + argsStr)
@@ -375,6 +440,15 @@ class EnduranceTest(val argsStr: String,
 
 }
 
+fun parseHeader(header: String): Header {
+    val parts = header.split(":")
+    check(parts.size == 2) { "Header is malformed" }
+    val (name, value) = parts
+    check(name.isNotEmpty()) { "Header name is empty" }
+    return BasicHeader(name, value.replace("^\\s+", ""))
+}
+
+
 class Args(parser: ArgParser) {
     val recordingPath by parser.positional("Path to recording file")
     val appUrl by parser.positional("URL of the Shiny application to interact with")
@@ -382,20 +456,26 @@ class Args(parser: ArgParser) {
             .default(1)
     val loadedDurationMinutes by parser.storing("Number of minutes to continue simulating sessions in each worker after all workers have completed one session. Can be fractional. Default is 5.") { toBigDecimal() }
             .default(BigDecimal(5))
-    val outputDir by parser.storing("Path to directory to store session logs in for this test run.")
-            .default(Instant.now().let {
-                // : is illegal in Windows filenames
-                val inst = it.toString().replace(":", "_")
-                "test-logs-${inst}"
-            })
-    val overwriteOutput by parser.flagging("Delete the output directory before starting, if it exists already.")
-    val debugLog by parser.flagging("Produce a debug.log in the output directory. File can get very large. Defaults to false.")
     val startInterval by parser.storing("Number of milliseconds to wait between starting workers. Defaults to the length of the recording divided by the number of workers.") {
         toLong()
     }.default(null)
+    val headers by parser.adding("-H", "--header", help = "A custom HTTP header in the form 'name: value' to add to each request.") {
+        parseHeader(this)
+    }
+    val outputDir by parser.storing("Path to directory to store session logs in for this test run.")
+    .default(Instant.now().let {
+      // : is illegal in Windows filenames
+      val inst = it.toString().replace(":", "_")
+      "test-logs-${inst}"
+    })
+    val overwriteOutput by parser.flagging("Delete the output directory before starting, if it exists already.")
+    val debugLog by parser.flagging("Produce a debug.log in the output directory. File can get very large. Defaults to false.")
     val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
-        Level.toLevel(this.toUpperCase(), Level.WARN) as Level
+      Level.toLevel(this.toUpperCase(), Level.WARN) as Level
     }.default(Level.WARN)
+
+    // retrieving here, but values are not parsed from directly supplied args
+    val creds = getCreds()
 }
 
 class ArgsSerializer(): JsonSerializer<Args> {
@@ -410,6 +490,9 @@ class ArgsSerializer(): JsonSerializer<Args> {
                 "kotlin.Int?" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Int?)
                 "kotlin.Long" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Long)
                 "kotlin.Int" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Int)
+                "org.apache.http.Header?", "kotlin.collections.MutableList<org.apache.http.Header>" -> {
+                  // do not add these values
+                }
                 "java.math.BigDecimal!", "java.math.BigDecimal" -> jsonObject.addProperty(it.name, (it.get(args) as BigDecimal).toFloat())
                 else -> error("Don't know how to JSON-serialize argument type: ${it.returnType}")
             }
@@ -440,7 +523,7 @@ fun initLogging(debugLog: Boolean, debugLogFile: String, logLevel: Level): Logge
 
     // Unlimited log message and short stack trace at the console
     val consoleLogPattern = "%d{yyyy-MM-dd HH:mm:ss.SSS} %p [%t] - %m%n%throwable{short}"
-  
+
     // Every log event, whether generated by application or by library code,
     // goes to the debug log if debugLog is true.
     if (debugLog) {
@@ -507,6 +590,7 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
                 environment variables:
                   SHINYCANNON_USER
                   SHINYCANNON_PASS
+                  SHINYCANNON_CONNECT_API_KEY
 
                 version: ${getVersion()}
                 """.trimIndent()
@@ -549,6 +633,15 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
             appLogger.error("Uncaught exception on ${thread.name}", exception)
         }
 
+        // Add the connect api key as an auth header if testing RSC
+        if (servedBy(appUrl, appLogger, headers) == ServerType.RSC) {
+            val connectApiKeyHeader = creds.connectApiKeyHeader()
+            if (connectApiKeyHeader != null) {
+                // add auth headers only once
+                headers.add(connectApiKeyHeader)
+            }
+        }
+
         val loadTest = EnduranceTest(
                 // Drop the original logpath from the arglist
                 args.asSequence().drop(1).joinToString(" "),
@@ -557,7 +650,9 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
                         .create()
                         .toJson(this),
                 appUrl,
+                headers,
                 recording,
+                creds,
                 numWorkers = workers,
                 outputDir = output,
                 warmupInterval = computedStartInterval,
