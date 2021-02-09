@@ -293,11 +293,11 @@ fun getCreds():Creds {
       pass = null
     }
 
-  return Creds(
+    return Creds(
       user = user,
       pass = pass,
       connectApiKey = apiKey
-  )
+    )
 }
 
 val RECORDING_VERSION = 1L
