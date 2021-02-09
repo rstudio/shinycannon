@@ -68,11 +68,22 @@ fun replaceTokens(s: String,
 }
 
 fun parseMessage(msg: String): JsonObject? {
+    // jcheng 2020-10-08: There are seeveral forms these messages can take. (I'm
+    // doing these from memory, in response to discovering that the "reconnect
+    // disabled" case seems not to have worked up til now.)
+    //
+    // Dev/SSOS: "{payload}"
+    // SSP/Connect, reconnect disabled: "a[0|m|{payload}" (where 0 is the subapp
+    //   number; because shinycannon doesn't support subapps, this number is
+    //   always zero)
+    // SSP/Connect, reconnect enabled: "a[A3#0|m|{payload}" (where A3 is a
+    //   message ID, these are nondeterministic and should be ignored)
+
     // If an unparsed message is from a reconnect-enabled server, it will have a
     // message ID on it. We want to ignore those for the purposes of looking at
     // matches, because they can vary sometimes (based on ignorable messages
     // sneaking into the message stream).
-    val normalized = msg.replace("""^a\["[0-9A-F]+""".toRegex(), """a["*""")
+    val normalized = msg.replace("""^a\["[0-9A-F]+#""".toRegex(), """a["*#""")
 
     val re = Pattern.compile("""^a\["(\*#)?0\|m\|(.*)"\]${'$'}""")
     val matcher = re.matcher(normalized)

@@ -33,6 +33,16 @@ class Test {
     }
 
     @Test
+    fun testParseMessageNoReconnect() {
+        val m1 = """a["0|m|{\"config\":{\"sessionId\":\"a string inside\",\"user\":null}}"]"""
+        val parsed = parseMessage(m1)
+        Assert.assertEquals("a string inside", parsed?.get("config")?.asJsonObject?.get("sessionId")?.asString)
+
+        val m2 = """a["0|m|{\"config\":{\"workerId\":\"139eab2\",\"sessionId\":\"abcdefg\",\"user\":null}}"]"""
+        Assert.assertEquals("abcdefg", parseMessage(m2)?.get("config")?.asJsonObject?.get("sessionId")?.asString)
+    }
+
+    @Test
     fun testIgnore() {
         val ignorableMessages = listOf(
             """a["ACK 2"]""",
