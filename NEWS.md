@@ -3,12 +3,12 @@
 ## Bug Fix and Improvements
 
 
-# shinycannon v1.1.0
+# shinycannon 1.1.0
 
 * Allow adding headers, including RStudio Connect API Key (#49, #56)
 * Fixed an SSP issue when using `reconnect off` configuration would produce errors that were swallowed. (#58)
 
-# shinycannon v1.0.0
+# shinycannon 1.0.0
 
 ## Bug Fixes
 
