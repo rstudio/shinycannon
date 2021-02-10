@@ -490,7 +490,9 @@ class ArgsSerializer(): JsonSerializer<Args> {
                 "kotlin.Int?" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Int?)
                 "kotlin.Long" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Long)
                 "kotlin.Int" -> jsonObject.addProperty(it.name, it.get(args) as kotlin.Int)
-                "org.apache.http.Header?", "kotlin.collections.MutableList<org.apache.http.Header>" -> {
+                "com.rstudio.shinycannon.Creds",
+                "org.apache.http.Header?",
+                "kotlin.collections.MutableList<org.apache.http.Header>" -> {
                   // do not add these values
                 }
                 "java.math.BigDecimal!", "java.math.BigDecimal" -> jsonObject.addProperty(it.name, (it.get(args) as BigDecimal).toFloat())
