@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - master
+    tags:
+      - v** # Push events to any tag starting with a 'v': v1.1.0, v2.x ...
   pull_request:
     branches:
       - master
