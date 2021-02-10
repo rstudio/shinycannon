@@ -55,7 +55,7 @@ You can run `shinycannon` with something like:
 
 ```bash
 java -jar \
-  ./out/shinycannon-1.1.0-GITSHA.jar \
+  ./out/shinycannon-1.1.0-45731f0.jar \
   recording.log \
   http://example.com/your/app
 ```
