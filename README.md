@@ -42,7 +42,7 @@ A file, `target/shinycannon-1.1.0-jar-with-dependencies.jar` will be created.
 To build the `.jar` file and all packages (rpm/deb/sh):
 
 ```
-sudo docker run -it --rm -v $PWD:/root -w /root shinycannon-build make clean_out packages
+sudo docker run -it --rm -v $PWD:/root -w /root shinycannon-build make clean maven packages
 ```
 
 > Note: you may or may not need `sudo`, depending on how you installed Docker.
