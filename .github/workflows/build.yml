@@ -2,12 +2,12 @@ name: Build
 on:
   push:
     branches:
-      - master
+      - main
     tags:
       - v** # Push events to any tag starting with a 'v': v1.1.0, v2.x ...
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   build:
