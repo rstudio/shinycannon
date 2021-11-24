@@ -151,7 +151,7 @@ class ShinySession(val sessionId: Int,
     )
 
     var webSocket: WebSocket? = null
-    val receiveQueueSize = 5
+    val receiveQueueSize = 50
     val receiveQueue: LinkedBlockingQueue<WSMessage> = LinkedBlockingQueue(receiveQueueSize)
 
     var lastEventEnded: Long? = null
