@@ -280,7 +280,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                                 if (!session.receiveQueue.offer(WSMessage.String(session.replaceTokens(msg)))) {
                                     val queueSize = session.receiveQueueSize
                                     // This is possible when many `custom` messages are unexpectedly received!
-                                    throw Exception("receiveQueue is full (max = $queueSize). If this error is occuring, please submit an GitHub issue with debug logs. Some unexpected WebSocket messages are being received")
+                                    throw Exception("Message queue is full (max = $queueSize). If this error is occuring, please submit an GitHub issue with debug logs. Some unexpected WebSocket messages are being received")
                                 }
                             }
                         }
