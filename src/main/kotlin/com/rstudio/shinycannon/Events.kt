@@ -276,6 +276,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                                 session.logger.debug("%%% Ignoring $msg")
                             } else {
                                 session.logger.debug("%%% Received: $msg")
+                                session.logger.debug("%%% Message queue length: ${session.receiveQueue.size}")
                                 if (!session.receiveQueue.offer(WSMessage.String(session.replaceTokens(msg)))) {
                                     val queueSize = session.receiveQueueSize
                                     // This is possible when many `custom` messages are unexpectedly received!
