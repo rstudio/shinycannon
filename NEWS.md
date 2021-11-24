@@ -1,6 +1,6 @@
 # shinycannon (development)
 
-## Bug Fix and Improvements
+# shinycannon 1.1.0
 
 * Increased the `receiveQueue` limit from 5 to 50 to avoid queue limit errors when non-determinist custom messages are being sent out of order (#63)
 
