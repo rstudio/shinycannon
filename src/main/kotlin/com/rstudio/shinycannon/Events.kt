@@ -49,8 +49,8 @@ fun canIgnore(message: String):Boolean {
         return true
     }
 
-    val emptyMessage = JsonParser()
-            .parse("""{"errors":[],"values":[],"inputMessages":[]}""")
+    val emptyMessage = JsonParser
+            .parseString("""{"errors":[],"values":[],"inputMessages":[]}""")
             .asJsonObject
     if (messageObject == emptyMessage) return true
 
@@ -83,7 +83,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
         private fun parseInstant(str: String) = Instant.parse(str).millis
 
         fun fromLine(lineNumber: Int, line: String): Event {
-            val obj = JsonParser().parse(line).asJsonObject
+            val obj = JsonParser.parseString(line).asJsonObject
             val begin = parseInstant(obj.get("begin").asString)
             val type = obj.get("type").asString
             return when (type) {
