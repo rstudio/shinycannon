@@ -3,7 +3,7 @@ FROM ubuntu:20.04
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
-  apt-get install -y openjdk-8-jdk-headless && \
+  apt-get install -y openjdk-11-jdk-headless && \
   apt-get install -y maven wget rake ruby ruby-dev rubygems build-essential libxml2-utils rpm git locales
 
 # Set the locale
