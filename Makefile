@@ -32,6 +32,7 @@ maven: $(MAVEN_UBERJAR)
 # using. The only difference between the two is that the $(JAR_FILE)
 # file name contains $(GIT_SHA). $(VERSION_FILE) is embededed in the
 # jar to provide the version at runtime.
+# Debug using `mvn package -X`
 $(MAVEN_UBERJAR):
 	mvn package
 	echo -n $(VERSION)-$(GIT_SHA) > $(VERSION_FILE)
