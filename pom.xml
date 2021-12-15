@@ -111,7 +111,6 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- For Java 7 compatibility, as Java 8+ has Instant -->
         <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>
