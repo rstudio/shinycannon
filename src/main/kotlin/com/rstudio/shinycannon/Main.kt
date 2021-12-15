@@ -88,15 +88,14 @@ fun parseMessage(msg: String): JsonObject? {
 
     val re = Pattern.compile("""^a\["(\*#)?0\|m\|(.*)"\]${'$'}""")
     val matcher = re.matcher(normalized)
-    val json = JsonParser()
     if (matcher.find()) {
-        val inner = json.parse("\"${matcher.group(2)}\"").asString
-        return json.parse(inner).asJsonObject
+        val inner = JsonParser.parseString("\"${matcher.group(2)}\"").asString
+        return JsonParser.parseString(inner).asJsonObject
     } else  if (msg == "o") {
         return null
     } else {
         // Note: if no match found, we're probably running against dev server or SSO
-        return json.parse(msg).asJsonObject
+        return JsonParser.parseString(msg).asJsonObject
     }
 }
 
