@@ -1,5 +1,16 @@
 # shinycannon (development)
 
+* Updated dependencies: (#65)
+  * `log4j`: `2.16.0` (@hekhuisk)
+  * `maven`: `3.8.4`
+  * `gson`: `2.8.9`
+  * `httpclient`: `4.5.13`
+  * `maven-assembly-plugin`: `3.3.0`
+  * `fpm`: `1.14.1`
+* Updated to use JDK 11 (from JDK 8) (#65)
+  * Set a `Multi-Release` flag to true
+  * Changed `kotlin-stdlib-jdk7` -> `kotlin-stdlib`
+
 # shinycannon 1.1.1
 
 * Increased the `receiveQueue` limit from 5 to 50 to avoid queue limit errors when non-determinist custom messages are being sent out of order (#63)
