@@ -14,7 +14,7 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
 # Install FPM (for building packages) and ronn (for making manpages)
-RUN gem install fpm:1.11.0 ronn:0.7.3
+RUN gem install fpm:1.14.1 ronn:0.7.3
 
 RUN mkdir /workdir
 WORKDIR /workdir
