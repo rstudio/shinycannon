@@ -1,4 +1,4 @@
-# shinycannon (development)
+# shinycannon 1.1.2
 
 * Updated dependencies: (#65)
   * `log4j`: `2.16.0` (@hekhuisk)
