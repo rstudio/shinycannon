@@ -7,6 +7,7 @@
   * `httpclient`: `4.5.13`
   * `maven-assembly-plugin`: `3.3.0`
   * `fpm`: `1.14.1`
+  * `junit`: `4.13.2` (0c64de4)
 * Updated to use JDK 11 (from JDK 8) (#65)
   * Set a `Multi-Release` flag to true
   * Changed `kotlin-stdlib-jdk7` -> `kotlin-stdlib`
