@@ -10,6 +10,7 @@
 * Updated to use JDK 11 (from JDK 8) (#65)
   * Set a `Multi-Release` flag to true
   * Changed `kotlin-stdlib-jdk7` -> `kotlin-stdlib`
+  * Set JVM target to 1.8 (Java 8)
 
 # shinycannon 1.1.1
 
