@@ -1,5 +1,6 @@
-# shinycannon (development)
+# shinycannon 1.1.3
 
+* Updated `log4j` to `2.17.0` (#67)
 
 
 # shinycannon 1.1.2
