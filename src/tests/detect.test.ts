@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { hasShinyJs } from "../detect.js";
+import { hasShinyJs, detectServerType } from "../detect.js";
+import { ServerType } from "../types.js";
 
 describe("hasShinyJs", () => {
   it("detects shiny.min.js with single quotes", () => {
@@ -24,5 +25,22 @@ describe("hasShinyJs", () => {
 <script src="shared/shiny.min.js"></script>
 </head><body></body></html>`;
     expect(hasShinyJs(html)).toBe(true);
+  });
+});
+
+describe("detectServerType", () => {
+  it("detects x-powered-by: Express as SSP (DET-06)", async () => {
+    const httpClient = {
+      get: async () => ({
+        statusCode: 200,
+        headers: { "x-powered-by": "Express" },
+        body: "<html></html>",
+      }),
+    };
+    const result = await detectServerType(
+      "https://example.com/app",
+      httpClient as any,
+    );
+    expect(result).toBe(ServerType.SSP);
   });
 });

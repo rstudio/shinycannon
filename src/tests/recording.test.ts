@@ -154,6 +154,25 @@ describe("readRecordingFromString", () => {
     );
     expect(recording.props.rscApiKeyRequired).toBe(false);
   });
+
+  it("throws on invalid begin timestamp (NaN)", () => {
+    const events = [{ type: "WS_CLOSE", begin: "not-a-date" }];
+    expect(() =>
+      readRecordingFromString(makeRecording(DEFAULT_HEADERS, events)),
+    ).toThrow("Invalid begin timestamp");
+  });
+
+  it("throws on negative version", () => {
+    const headers = [
+      "# version: -1",
+      "# target_url: http://localhost:3838",
+      "# target_type: R/Shiny",
+    ];
+    const events = [{ type: "WS_CLOSE", begin: T0 }];
+    expect(() =>
+      readRecordingFromString(makeRecording(headers, events)),
+    ).toThrow("Invalid recording version");
+  });
 });
 
 describe("recordingDuration", () => {
