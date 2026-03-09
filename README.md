@@ -1,94 +1,81 @@
 # shinycannon
 
-A load generation tool for [Shiny](https://shiny.rstudio.com/) applications. Part of https://rstudio.github.io/shinyloadtest
+A load-generation tool for [Shiny](https://shiny.posit.co/) applications.
+shinycannon replays recorded sessions against a deployed Shiny app, simulating
+concurrent users to measure application performance under load.
 
 ## Installation
 
-For installation instructions, please see [the shinyloadtest documentation](https://rstudio.github.io/shinyloadtest).
+Requires **Node.js 20+**.
 
-## Development
-
-shinycannon is written in [Kotlin][kotlin], a [JVM][jvm] language. Consequently,
-shinycannon is able to run on whatever platforms JVM is.
-
-However, to ease installation on various platforms, we produce package installer
-files using [fpm][fpm] in addition to a .jar file.
-
-### Building
-
-Building packages for all platforms is best accomplished with [Docker][docker].
-We'll use the `Dockerfile` included in this repository.
-
-First, build the Docker image with a command like the following:
-
-```
-docker build -t shinycannon-build .
-```
-
-#### Executable
-
-To build the `.jar` file:
-
-```
-sudo docker run -it --rm -v $PWD:/root -w /root shinycannon-build make maven
-```
-> Note: you may or may not need `sudo`, depending on how you installed Docker.
-
-A file, `target/shinycannon-1.1.0-jar-with-dependencies.jar` will be created.
-
-
-#### Installers
-
-To build the `.jar` file and all packages (rpm/deb/sh):
-
-```
-sudo docker run -it --rm -v $PWD:/root -w /root shinycannon-build make clean maven packages
-```
-
-> Note: you may or may not need `sudo`, depending on how you installed Docker.
-
-All installer files will be stored in the `./out` folder
-
-### Running
-
-You can run `shinycannon` with something like:
+Install globally via npm:
 
 ```bash
-java -jar \
-  ./out/shinycannon-1.1.0-45731f0.jar \
-  recording.log \
-  http://example.com/your/app
+npm install -g shinycannon
 ```
 
-If you are running against an app on RStudio Connect, an [RStudio Connect API Key](https://docs.rstudio.com/connect/user/api-keys/) is the easiest way to handle authentication. Please visit [Load Testing Authenticated Apps](https://rstudio.github.io/shinyloadtest/articles/load-testing-authenticated-apps.html#load-testing) for examples on how to safely set a sensitive environment variable such as `SHINYCANNON_CONNECT_API_KEY`.
+Or run directly with npx:
 
-> Note: that if the recording was done with an RStudio Connect API key, playback **MUST** be done with an RStudio Connect API key.  Similarly, if a recording does **NOT** use an API key, playback must **NOT** use an API key.
+```bash
+npx shinycannon --help
+```
 
+## Usage
 
-## Releasing
+```bash
+shinycannon recording.log https://example.com/app [options]
+```
 
-In the past, release installers were built privately on internal
-RStudio infrastructure. Release artifacts were deployed to S3. Now,
-release artifacts are built with a GitHub Actions workflow and
-uploaded as GitHub release assets.
+### Options
 
-Before releasing, first update `pom.xml` with the desired
-version. Then, to create a release and build corresponding release
-artifacts, create and push a tag prefixed with `v` such as
-`v1.2.3`. On push, the shinycannon `.jar` and a set of
-platform-specific installers will be created and uploaded.
+| Option | Description |
+|--------|-------------|
+| `--workers <n>` | Number of concurrent workers (default: 1) |
+| `--loaded-duration-minutes <n>` | Minutes to maintain load after warmup (default: 5) |
+| `--start-interval <ms>` | Milliseconds between starting workers (default: recording duration / workers) |
+| `-H, --header <header>` | Custom HTTP header, repeatable |
+| `--output-dir <dir>` | Directory for session logs |
+| `--overwrite-output` | Overwrite existing output directory |
+| `--debug-log` | Write verbose debug log |
+| `--log-level <level>` | Console log level: `debug`, `info`, `warn`, `error` (default: `warn`) |
 
-Releases are available under the "Releases" tab of the project GitHub
-page.
+## Authentication
 
-After release artifacts are created, you should update the
-shinyloadtest documentation to point to the correct URLs.
+shinycannon supports authentication via environment variables:
+
+| Variable | Purpose |
+|----------|---------|
+| `SHINYCANNON_USER` | Username for Shiny Server Pro or Posit Connect |
+| `SHINYCANNON_PASS` | Password for Shiny Server Pro or Posit Connect |
+| `SHINYCANNON_CONNECT_API_KEY` | API key for Posit Connect |
+
+> **Note:** If the recording was made with a Connect API key, playback must
+> also use a Connect API key. Likewise, if the recording was made without an
+> API key, playback must not use one.
+
+## Example
+
+```bash
+shinycannon recording.log https://rsc.example.com/app \
+  --workers 5 \
+  --loaded-duration-minutes 10 \
+  --output-dir load-test-results
+```
+
+## Companion Package
+
+shinycannon is designed to work with the
+[shinyloadtest](https://rstudio.github.io/shinyloadtest) R package.
+Use shinyloadtest to record sessions and analyze load test results.
+
+## Migration from Kotlin Version
+
+This is a TypeScript rewrite of shinycannon, which was originally implemented
+in Kotlin on the JVM. The rewrite uses the same recording format, the same
+output format, and the same CLI interface. Existing recordings and analysis
+workflows are fully compatible. The original Kotlin source is archived in the
+`_archive/kotlin/` directory.
 
 ## License
 
 MIT
-
-[kotlin]: https://kotlinlang.org/
-[jvm]: https://en.wikipedia.org/wiki/Java_virtual_machine
-[fpm]: https://github.com/jordansissel/fpm
-[docker]: https://www.docker.com/
