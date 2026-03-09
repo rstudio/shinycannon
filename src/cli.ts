@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import { Command } from "commander";
+import { VERSION } from "./version.js";
 import { defaultOutputDir } from "./output.js";
 import { parseLogLevel, LogLevel } from "./logger.js";
 import { getCreds } from "./auth.js";
@@ -135,7 +136,7 @@ export function parseArgs(argv?: string[]): ParsedArgs {
         "  SHINYCANNON_PASS              Password for SSP or Connect auth\n" +
         "  SHINYCANNON_CONNECT_API_KEY   RStudio Connect API key",
     )
-    .version("0.0.1");
+    .version(VERSION);
 
   program.parse(argv ?? process.argv);
 

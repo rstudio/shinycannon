@@ -7,6 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { CookieJar } from "tough-cookie";
 
+import { VERSION } from "./version.js";
 import {
   loginUrlFor,
   extractHiddenInputs,
@@ -41,7 +42,7 @@ import { ShinyWebSocket } from "./websocket.js";
 // Constants
 // ---------------------------------------------------------------------------
 
-const USER_AGENT = "shinycannon/0.0.1";
+const USER_AGENT = `shinycannon/${VERSION}`;
 
 // ---------------------------------------------------------------------------
 // Stats

@@ -1,4 +1,5 @@
 import * as path from "node:path";
+import { VERSION } from "./version.js";
 import { parseArgs, serializeArgs } from "./cli.js";
 import { readRecording, recordingDuration } from "./recording.js";
 import { createLogger } from "./logger.js";
@@ -40,7 +41,7 @@ async function main(): Promise<void> {
   createOutputDir({
     outputDir: args.outputDir,
     overwrite: args.overwriteOutput,
-    version: "0.0.1",
+    version: VERSION,
     recordingPath: args.recordingPath,
   });
 
