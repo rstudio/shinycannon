@@ -16,19 +16,6 @@ async function main(): Promise<void> {
   const startInterval =
     args.startInterval !== null ? args.startInterval : duration / args.workers;
 
-  const logger = createLogger({
-    name: "main",
-    consoleLevel: args.logLevel,
-    debugLogPath: args.debugLog
-      ? path.join(args.outputDir, "debug.log")
-      : undefined,
-  });
-
-  const serverTypeName =
-    SERVER_TYPE_NAMES.get(recording.props.targetType) ??
-    recording.props.targetType;
-  logger.info(`Server type from recording: ${serverTypeName}`);
-
   if (
     recording.props.rscApiKeyRequired &&
     args.creds.connectApiKey === null
@@ -44,6 +31,19 @@ async function main(): Promise<void> {
     version: VERSION,
     recordingPath: args.recordingPath,
   });
+
+  const logger = createLogger({
+    name: "main",
+    consoleLevel: args.logLevel,
+    debugLogPath: args.debugLog
+      ? path.join(args.outputDir, "debug.log")
+      : undefined,
+  });
+
+  const serverTypeName =
+    SERVER_TYPE_NAMES.get(recording.props.targetType) ??
+    recording.props.targetType;
+  logger.info(`Server type from recording: ${serverTypeName}`);
 
   const { argsString, argsJson } = serializeArgs(args);
 

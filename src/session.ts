@@ -265,11 +265,12 @@ async function handleReqPost(
   if (event.datafile !== undefined) {
     const parentDir = path.dirname(state.recordingPath);
     const filePath = path.resolve(parentDir, event.datafile);
-    const resolvedParent = path.resolve(parentDir);
-    if (!filePath.startsWith(resolvedParent + path.sep) && filePath !== resolvedParent) {
+    const realParent = fs.realpathSync(path.resolve(parentDir));
+    const realFile = fs.realpathSync(filePath);
+    if (!realFile.startsWith(realParent + path.sep) && realFile !== realParent) {
       throw new Error(`Datafile path escapes recording directory: ${event.datafile}`);
     }
-    body = fs.readFileSync(filePath);
+    body = fs.readFileSync(realFile);
     contentType = "application/octet-stream";
   }
 

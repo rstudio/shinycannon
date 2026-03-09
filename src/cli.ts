@@ -170,7 +170,7 @@ export function parseArgs(argv?: string[]): ParsedArgs {
   // Parse start interval
   const startInterval =
     opts.startInterval !== undefined ? Number(opts.startInterval) : null;
-  if (startInterval !== null && (isNaN(startInterval) || startInterval < 0)) {
+  if (startInterval !== null && (!Number.isFinite(startInterval) || startInterval < 0)) {
     throw new Error(`Invalid start-interval value: ${opts.startInterval}`);
   }
 
@@ -180,7 +180,7 @@ export function parseArgs(argv?: string[]): ParsedArgs {
   }
 
   const loadedDurationMinutes = Number(opts.loadedDurationMinutes);
-  if (isNaN(loadedDurationMinutes) || loadedDurationMinutes <= 0) {
+  if (!Number.isFinite(loadedDurationMinutes) || loadedDurationMinutes <= 0) {
     throw new Error(
       `Invalid loaded-duration-minutes value: ${opts.loadedDurationMinutes}`,
     );
