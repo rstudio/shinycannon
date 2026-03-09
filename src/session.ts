@@ -76,6 +76,11 @@ export class Stats {
     };
   }
 
+  /** Record a failure without decrementing running (for pre-start failures). */
+  recordFailure(): void {
+    this.failed++;
+  }
+
   toString(): string {
     return `Running: ${this.running}, Failed: ${this.failed}, Done: ${this.done}`;
   }
@@ -259,6 +264,10 @@ async function handleReqPost(
   if (event.datafile !== undefined) {
     const parentDir = path.dirname(state.recordingPath);
     const filePath = path.resolve(parentDir, event.datafile);
+    const resolvedParent = path.resolve(parentDir);
+    if (!filePath.startsWith(resolvedParent + path.sep) && filePath !== resolvedParent) {
+      throw new Error(`Datafile path escapes recording directory: ${event.datafile}`);
+    }
     body = fs.readFileSync(filePath);
     contentType = "application/octet-stream";
   }
@@ -521,6 +530,8 @@ export async function runSession(
     creds,
   };
 
+  let started = false;
+
   try {
     writer.writeCsv(
       sessionId,
@@ -560,6 +571,7 @@ export async function runSession(
     }
 
     stats.transition("running");
+    started = true;
 
     let lastEventEnded: number | null = null;
 
@@ -640,7 +652,13 @@ export async function runSession(
     );
   } catch (err: unknown) {
     const error = err instanceof Error ? err : new Error(String(err));
-    stats.transition("failed");
+    if (started) {
+      stats.transition("failed");
+    } else {
+      // Failed before entering "running" state — record failure without
+      // decrementing the running counter.
+      stats.recordFailure();
+    }
     writer.writeCsv(
       sessionId,
       workerId,
@@ -652,6 +670,10 @@ export async function runSession(
     );
     logger.error(`Playback failed: ${error.message}`, error);
   } finally {
+    if (state.webSocket !== null) {
+      try { state.webSocket.close(); } catch { /* ignore close errors */ }
+      state.webSocket = null;
+    }
     writer.close();
   }
 }

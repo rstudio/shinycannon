@@ -168,17 +168,17 @@ export function parseArgs(argv?: string[]): ParsedArgs {
 
   // Parse start interval
   const startInterval =
-    opts.startInterval !== undefined ? parseInt(opts.startInterval, 10) : null;
-  if (startInterval !== null && isNaN(startInterval)) {
+    opts.startInterval !== undefined ? Number(opts.startInterval) : null;
+  if (startInterval !== null && (isNaN(startInterval) || startInterval < 0)) {
     throw new Error(`Invalid start-interval value: ${opts.startInterval}`);
   }
 
-  const workers = parseInt(opts.workers, 10);
-  if (isNaN(workers) || workers < 1) {
+  const workers = Number(opts.workers);
+  if (!Number.isInteger(workers) || workers < 1) {
     throw new Error(`Invalid workers value: ${opts.workers}`);
   }
 
-  const loadedDurationMinutes = parseFloat(opts.loadedDurationMinutes);
+  const loadedDurationMinutes = Number(opts.loadedDurationMinutes);
   if (isNaN(loadedDurationMinutes) || loadedDurationMinutes <= 0) {
     throw new Error(
       `Invalid loaded-duration-minutes value: ${opts.loadedDurationMinutes}`,

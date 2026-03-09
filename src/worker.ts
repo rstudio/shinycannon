@@ -118,8 +118,11 @@ export async function runEnduranceTest(
     }
 
     // First session (warmup)
-    await runSession(buildSessionConfig(), stats);
-    warmupResolvers[workerId]!();
+    try {
+      await runSession(buildSessionConfig(), stats);
+    } finally {
+      warmupResolvers[workerId]!();
+    }
 
     // Subsequent sessions
     while (keepWorking) {
@@ -136,25 +139,26 @@ export async function runEnduranceTest(
     workerPromises.push(workerFn(i));
   }
 
-  // Wait for all workers to complete their first session (warmup phase)
-  logger.info("Waiting for warmup to complete");
-  await Promise.all(warmupPromises);
+  try {
+    // Wait for all workers to complete their first session (warmup phase)
+    logger.info("Waiting for warmup to complete");
+    await Promise.all(warmupPromises);
 
-  // Maintain loaded duration
-  logger.info(`Maintaining for ${loadedDurationMinutes} minutes`);
-  await sleep(loadedDurationMinutes * 60000);
+    // Maintain loaded duration
+    logger.info(`Maintaining for ${loadedDurationMinutes} minutes`);
+    await sleep(loadedDurationMinutes * 60000);
 
-  // Signal workers to stop
-  logger.info("Stopped maintaining, waiting for workers to stop");
-  keepWorking = false;
+    // Signal workers to stop
+    logger.info("Stopped maintaining, waiting for workers to stop");
+    keepWorking = false;
 
-  // Wait for all workers to finish their current sessions
-  await Promise.all(workerPromises);
+    // Wait for all workers to finish their current sessions
+    await Promise.all(workerPromises);
 
-  // Stop progress reporting
-  clearInterval(progressInterval);
-
-  // Final summary
-  const counts = stats.getCounts();
-  logger.info(`Complete. Failed: ${counts.failed}, Done: ${counts.done}`);
+    // Final summary
+    const counts = stats.getCounts();
+    logger.info(`Complete. Failed: ${counts.failed}, Done: ${counts.done}`);
+  } finally {
+    clearInterval(progressInterval);
+  }
 }
