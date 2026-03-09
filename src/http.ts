@@ -86,8 +86,8 @@ export async function getCookieString(
 // ---------------------------------------------------------------------------
 
 export class HttpClient {
-  private readonly cookieJar: CookieJar;
-  private readonly customHeaders: Record<string, string>;
+  readonly cookieJar: CookieJar;
+  private customHeaders: Record<string, string>;
   private readonly userAgent: string;
 
   constructor(options: {
@@ -98,6 +98,10 @@ export class HttpClient {
     this.cookieJar = options.cookieJar;
     this.customHeaders = options.headers;
     this.userAgent = options.userAgent;
+  }
+
+  setHeaders(headers: Record<string, string>): void {
+    this.customHeaders = headers;
   }
 
   async get(url: string): Promise<HttpResponse> {

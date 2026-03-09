@@ -6,7 +6,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { CookieJar } from "tough-cookie";
-
 import { VERSION } from "./version.js";
 import {
   loginUrlFor,
@@ -266,7 +265,12 @@ async function handleReqPost(
     const parentDir = path.dirname(state.recordingPath);
     const filePath = path.resolve(parentDir, event.datafile);
     const realParent = fs.realpathSync(path.resolve(parentDir));
-    const realFile = fs.realpathSync(filePath);
+    let realFile: string;
+    try {
+      realFile = fs.realpathSync(filePath);
+    } catch {
+      throw new Error(`Datafile not found: ${event.datafile}`);
+    }
     if (!realFile.startsWith(realParent + path.sep) && realFile !== realParent) {
       throw new Error(`Datafile path escapes recording directory: ${event.datafile}`);
     }
@@ -291,7 +295,7 @@ async function handleWsOpen(
   const wsUrl = joinPaths(wsBaseUrl, renderedUrl);
 
   const cookieString = await getCookieString(
-    (state.httpClient as unknown as { cookieJar: CookieJar }).cookieJar,
+    state.httpClient.cookieJar,
     state.httpUrl,
   );
 
@@ -548,6 +552,7 @@ export async function runSession(
     // Login if needed
     headers = await maybeLogin(httpClient, httpUrl, creds, headers, logger);
     state.headers = headers;
+    httpClient.setHeaders(headers);
 
     // Start delay
     if (startDelayMs !== undefined && startDelayMs > 0) {

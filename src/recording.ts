@@ -75,6 +75,9 @@ function readProps(lines: readonly string[]): RecordingProps {
 function parseEvent(lineNumber: number, line: string): RecordingEvent {
   const obj = JSON.parse(line) as Record<string, unknown>;
   const begin = new Date(obj["begin"] as string).getTime();
+  if (!Number.isFinite(begin)) {
+    throw new Error(`Invalid begin timestamp on line ${lineNumber}: ${obj["begin"]}`);
+  }
   const type = obj["type"] as string;
 
   switch (type) {
