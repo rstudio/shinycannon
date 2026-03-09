@@ -51,7 +51,7 @@ function readProps(lines: readonly string[]): RecordingProps {
     );
   }
 
-  const rscApiKeyRequired = raw.get("rsc_api_key_required") === "true";
+  const rscApiKeyRequired = raw.get("rscApiKeyRequired") === "true";
 
   return {
     version,

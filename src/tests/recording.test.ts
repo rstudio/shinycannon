@@ -137,7 +137,7 @@ describe("readRecordingFromString", () => {
       "# version: 1",
       "# target_url: https://connect.example.com/app",
       "# target_type: RStudio Server Connect",
-      "# rsc_api_key_required: true",
+      "# rscApiKeyRequired: true",
     ];
     const events = [{ type: "WS_CLOSE", begin: T0 }];
 
