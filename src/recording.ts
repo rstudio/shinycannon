@@ -45,6 +45,9 @@ function readProps(lines: readonly string[]): RecordingProps {
   }
 
   const version = parseInt(raw.get("version")!, 10);
+  if (!Number.isInteger(version) || version < 0) {
+    throw new Error(`Invalid recording version: ${raw.get("version")}`);
+  }
   if (version > RECORDING_VERSION) {
     throw new Error(
       `Recording version ${version} is newer than supported version ${RECORDING_VERSION}`,
@@ -124,14 +127,15 @@ function parseEvent(lineNumber: number, line: string): RecordingEvent {
 // ---------------------------------------------------------------------------
 
 export function readRecordingFromString(content: string): Recording {
-  const lines = content.split("\n").filter((l) => l.length > 0);
+  const allLines = content.split("\n");
+  const nonEmptyLines = allLines.filter((l) => l.length > 0);
 
-  const props = readProps(lines);
+  const props = readProps(nonEmptyLines);
 
   const events: RecordingEvent[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!;
-    if (line.startsWith("#")) continue;
+  for (let i = 0; i < allLines.length; i++) {
+    const line = allLines[i]!;
+    if (line.length === 0 || line.startsWith("#")) continue;
     events.push(parseEvent(i + 1, line));
   }
 
