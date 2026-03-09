@@ -268,8 +268,11 @@ async function handleReqPost(
     let realFile: string;
     try {
       realFile = fs.realpathSync(filePath);
-    } catch {
-      throw new Error(`Datafile not found: ${event.datafile}`);
+    } catch (err: unknown) {
+      if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new Error(`Datafile not found: ${event.datafile}`);
+      }
+      throw err;
     }
     if (!realFile.startsWith(realParent + path.sep) && realFile !== realParent) {
       throw new Error(`Datafile path escapes recording directory: ${event.datafile}`);
