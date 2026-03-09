@@ -1,5 +1,15 @@
 .DS_Store
 .idea/
+_ignore/
+recordings/
+test-logs-*
+
+# TypeScript / Node.js
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Kotlin / JVM (archived)
 target/
 package/
 shinycannon.1
@@ -11,8 +21,4 @@ RELEASE_URLS.txt
 .rpmdb/
 .project
 .settings/
-_ignore/
 out/
-recordings/
-
-test-logs-*
