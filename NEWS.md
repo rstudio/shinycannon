@@ -1,5 +1,10 @@
 # shinycannon (development)
 
+* Rewrote shinycannon in TypeScript targeting Node.js 20+, replacing the
+  Kotlin/JVM implementation. Install via `npm install -g shinycannon` or run
+  with `npx shinycannon`. The CLI interface, recording format, and output
+  format are unchanged; existing recordings and shinyloadtest analysis
+  workflows are fully compatible.
 
 
 
