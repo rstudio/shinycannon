@@ -84,9 +84,9 @@ export async function loginSSP(
   hiddenInputs: Record<string, string>,
 ): Promise<void> {
   const fields: Record<string, string> = {
+    ...hiddenInputs,
     username,
     password,
-    ...hiddenInputs,
   };
   const resp = await httpClient.postForm(loginUrl, fields);
   if (resp.statusCode !== 200 && resp.statusCode !== 302) {
