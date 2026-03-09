@@ -91,6 +91,8 @@ export class ShinyWebSocket {
   readonly receiveQueue: AsyncQueue<WSMessage>;
   private readonly ws: WebSocket;
   private _closedByServer = false;
+  private _closedByClient = false;
+  private _terminalError: Error | null = null;
   private failureCallback: ((error: Error) => void) | null = null;
 
   constructor(options: {
@@ -126,11 +128,7 @@ export class ShinyWebSocket {
     });
 
     this.ws.on("close", (_code: number, _reason: Buffer) => {
-      // If we didn't initiate the close, it was server-initiated
-      if (
-        this.ws.readyState === WebSocket.CLOSED &&
-        !this._closedByServer
-      ) {
+      if (!this._closedByClient) {
         this._closedByServer = true;
         this.triggerFailure(new Error("Server closed websocket connection"));
       }
@@ -147,9 +145,16 @@ export class ShinyWebSocket {
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
+      if (this._terminalError) {
+        throw this._terminalError;
+      }
+
       const msg = await this.receiveQueue.poll(POLL_TIMEOUT_MS);
 
       if (msg === null) {
+        if (this._terminalError) {
+          throw this._terminalError;
+        }
         warnFn(elapsed);
         elapsed += POLL_TIMEOUT_MS / 1000;
         continue;
@@ -168,8 +173,9 @@ export class ShinyWebSocket {
     this.ws.send(text);
   }
 
-  /** Close the WebSocket connection. */
+  /** Close the WebSocket connection (client-initiated). */
   close(): void {
+    this._closedByClient = true;
     this.ws.close();
   }
 
@@ -184,6 +190,7 @@ export class ShinyWebSocket {
   }
 
   private triggerFailure(error: Error): void {
+    this._terminalError = error;
     // Push error into the queue so receive() can throw it
     this.receiveQueue.offer({ kind: "error", error });
     this.failureCallback?.(error);

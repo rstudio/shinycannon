@@ -44,8 +44,12 @@ function readProps(lines: readonly string[]): RecordingProps {
     }
   }
 
-  const version = parseInt(raw.get("version")!, 10);
-  if (!Number.isInteger(version) || version < 0) {
+  const versionStr = raw.get("version")!;
+  if (!/^\d+$/.test(versionStr)) {
+    throw new Error(`Invalid recording version: ${versionStr}`);
+  }
+  const version = Number(versionStr);
+  if (version < 0) {
     throw new Error(`Invalid recording version: ${raw.get("version")}`);
   }
   if (version > RECORDING_VERSION) {
