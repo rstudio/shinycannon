@@ -49,10 +49,11 @@ fun canIgnore(message: String):Boolean {
         return true
     }
 
-    val emptyMessage = JsonParser
-            .parseString("""{"errors":[],"values":[],"inputMessages":[]}""")
-            .asJsonObject
-    if (messageObject == emptyMessage) return true
+    val emptyMessages = listOf(
+            """{"errors":[],"values":[],"inputMessages":[]}""",
+            """{"values":{},"inputMessages":[],"errors":{}}"""
+    ).map { JsonParser.parseString(it).asJsonObject }
+    if (messageObject in emptyMessages) return true
 
     return false
 }
