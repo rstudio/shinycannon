@@ -125,10 +125,11 @@ describe("CLI Process", () => {
   }, 10000);
 
   // CLI-17: app-url is optional — resolved from recording's target_url
-  // (The process will still exit non-zero because the target_url is unreachable,
+  // (The process will exit non-zero because the target_url is unreachable,
   // but the error should NOT be about missing arguments.)
   it("omitting app-url resolves from recording target_url", async () => {
     const result = await runCli([recordingPath]);
+    expect(result.exitCode).not.toBe(0);
     expect(result.stderr).not.toMatch(/missing.*argument/i);
   }, 10000);
 

@@ -184,6 +184,11 @@ export function parseArgs(argv?: string[]): ParsedArgs {
     appUrl = appUrlArg;
   } else {
     const recording = readRecording(recordingPath);
+    if (!recording.props.targetUrl) {
+      throw new Error(
+        "Recording does not contain a target_url; provide app-url explicitly",
+      );
+    }
     appUrl = recording.props.targetUrl;
   }
 
