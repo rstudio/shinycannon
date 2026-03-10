@@ -75,7 +75,7 @@ export class TerminalUI {
 
   constructor(config: UIConfig) {
     this.config = config;
-    this.spinner = ora({ stream: process.stderr, color: "cyan" });
+    this.spinner = ora({ stream: process.stderr, color: "cyan", discardStdin: false });
     this.testStartTime = Date.now();
   }
 
@@ -110,7 +110,7 @@ export class TerminalUI {
     this.loadedDurationMs = this.config.loadedDurationMinutes * 60_000;
 
     this.spinner.succeed("Warmup complete");
-    this.spinner = ora({ stream: process.stderr, color: "cyan" });
+    this.spinner = ora({ stream: process.stderr, color: "cyan", discardStdin: false });
     this.spinner.start(this.loadedText());
 
     this.updateTimer = setInterval(() => {
@@ -121,7 +121,7 @@ export class TerminalUI {
   startShutdown(): void {
     this.stopUpdates();
     this.spinner.succeed("Loaded phase complete");
-    this.spinner = ora({ stream: process.stderr, color: "cyan" });
+    this.spinner = ora({ stream: process.stderr, color: "cyan", discardStdin: false });
     this.spinner.start("Waiting for workers to finish...");
   }
 

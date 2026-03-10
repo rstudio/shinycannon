@@ -110,8 +110,25 @@ async function main(): Promise<void> {
   ui?.showBanner();
 
   // Ensure Ctrl+C / kill cleanly stops the spinner and exits
-  process.on("SIGINT", () => { ui?.cleanup(); process.exit(130); });
-  process.on("SIGTERM", () => { ui?.cleanup(); process.exit(143); });
+  function handleSignal(code: number): void {
+    try { ui?.cleanup(); } catch { /* ignore cleanup errors */ }
+    process.exit(code);
+  }
+  process.on("SIGINT", () => handleSignal(130));
+  process.on("SIGTERM", () => handleSignal(143));
+
+  // Raw-mode fallback: if stdin is a TTY, listen for Ctrl+C (0x03) directly
+  // in case the OS-level SIGINT is not delivered (e.g. when spawned by npx).
+  if (process.stdin.isTTY && typeof process.stdin.setRawMode === "function") {
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.on("data", (chunk: Buffer) => {
+      // Ctrl+C = 0x03, Ctrl+D = 0x04
+      if (chunk[0] === 0x03 || chunk[0] === 0x04) {
+        handleSignal(130);
+      }
+    });
+  }
 
   await runEnduranceTest({
     httpUrl: args.appUrl,
