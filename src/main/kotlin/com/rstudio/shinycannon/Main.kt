@@ -54,17 +54,16 @@ fun replaceTokens(s: String,
                   allowedTokens: HashSet<String>,
                   tokenDictionary: HashMap<String, String>): String {
 
-    val tokensInUrl = getTokens(s)
-
-    if (allowedTokens.union(tokensInUrl) != allowedTokens) {
-        val illegalTokens = tokensInUrl.filterNot { allowedTokens.contains(it) }
-        throw Exception("$illegalTokens are illegal tokens")
-    }
-
-    return tokensInUrl.fold(s) { newS, tokenName ->
-        if (!tokenDictionary.containsKey(tokenName))
-            throw Exception("$tokenName is an allowed token, but it isn't present in the dictionary")
-        newS.replace("\${$tokenName}", tokenDictionary[tokenName]!!, true)
+    // Only replace tokens that are in the allowed set. Other ${...} patterns
+    // (e.g. JavaScript template literals in minified widget code) are left as-is.
+    return allowedTokens.fold(s) { newS, tokenName ->
+        if ("\${$tokenName}" in newS) {
+            if (!tokenDictionary.containsKey(tokenName))
+                throw Exception("$tokenName is an allowed token, but it isn't present in the dictionary")
+            newS.replace("\${$tokenName}", tokenDictionary[tokenName]!!, true)
+        } else {
+            newS
+        }
     }
 }
 
@@ -157,7 +156,15 @@ class ShinySession(val sessionId: Int,
 
     val cookieStore = BasicCookieStore()
 
+    val commIdMapping: LinkedHashMap<String, String> = linkedMapOf()
+
     fun replaceTokens(s: String) = replaceTokens(s, allowedTokens, tokenDictionary)
+
+    fun replaceCommIds(s: String): String {
+        return commIdMapping.entries.fold(s) { result, (recorded, actual) ->
+            result.replace(recorded, actual)
+        }
+    }
 
     private fun maybeLogin() {
       // Connect API Key has preference
@@ -457,7 +464,7 @@ class Args(parser: ArgParser) {
             .default(BigDecimal(5))
     val startInterval by parser.storing("Number of milliseconds to wait between starting workers. Defaults to the length of the recording divided by the number of workers.") {
         toLong()
-    }.default(null)
+    }.default(null as Long?)
     val headers by parser.adding("-H", "--header", help = "A custom HTTP header in the form 'name: value' to add to each request.") {
         parseHeader(this)
     }
