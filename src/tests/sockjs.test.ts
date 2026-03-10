@@ -71,12 +71,17 @@ describe("canIgnore", () => {
     ).toBe(true);
   });
 
-  it("ignores empty update messages (Python Shiny format with objects)", () => {
+  it("does not ignore messages with empty objects for values/errors", () => {
     expect(
       canIgnore(
         '{"values":{},"inputMessages":[],"errors":{}}',
       ),
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      canIgnore(
+        'a["2#0|m|{\\"errors\\":{},\\"values\\":{},\\"inputMessages\\":[]}"]',
+      ),
+    ).toBe(false);
   });
 
   it("does not ignore real data messages", () => {
