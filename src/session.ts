@@ -190,6 +190,7 @@ interface SessionState {
   httpClient: HttpClient;
   httpUrl: string;
   tokenDictionary: Map<string, string>;
+  commIdMapping: Map<string, string>;
   recordingPath: string;
   logger: Logger;
   webSocket: ShinyWebSocket | null;
@@ -325,6 +326,46 @@ async function handleWsOpen(
   state.webSocket = ws;
 }
 
+/** @internal Exported for testing. */
+export function extractCommId(commOpenJson: string): string | null {
+  try {
+    const obj = JSON.parse(commOpenJson) as Record<string, unknown>;
+    const content = obj["content"] as Record<string, unknown> | undefined;
+    return typeof content?.["comm_id"] === "string" ? content["comm_id"] : null;
+  } catch {
+    return null;
+  }
+}
+
+function extractCommIdMapping(
+  expectingObj: Record<string, unknown>,
+  receivedObj: Record<string, unknown> | null,
+  state: SessionState,
+): void {
+  const expectingCustom = expectingObj["custom"] as Record<string, unknown> | undefined;
+  const receivedCustom = receivedObj?.["custom"] as Record<string, unknown> | undefined;
+  if (expectingCustom == null || receivedCustom == null) return;
+
+  const commOpenKey = "shinywidgets_comm_open";
+  if (!(commOpenKey in expectingCustom) || !(commOpenKey in receivedCustom)) return;
+
+  const recordedCommId = extractCommId(expectingCustom[commOpenKey] as string);
+  const actualCommId = extractCommId(receivedCustom[commOpenKey] as string);
+  if (recordedCommId != null && actualCommId != null) {
+    state.commIdMapping.set(recordedCommId, actualCommId);
+    state.logger.debug(`Mapped comm_id: ${recordedCommId} -> ${actualCommId}`);
+  }
+}
+
+/** @internal Exported for testing. */
+export function replaceCommIds(s: string, commIdMapping: ReadonlyMap<string, string>): string {
+  let result = s;
+  for (const [recorded, actual] of commIdMapping) {
+    result = result.replaceAll(recorded, actual);
+  }
+  return result;
+}
+
 function handleWsSend(
   event: RecordingEvent & { type: "WS_SEND" },
   state: SessionState,
@@ -332,7 +373,8 @@ function handleWsSend(
   if (state.webSocket === null) {
     throw new Error("Tried to WS_SEND but no websocket is open");
   }
-  const text = replaceSessionTokens(event.message, state.tokenDictionary);
+  const tokenReplaced = replaceSessionTokens(event.message, state.tokenDictionary);
+  const text = replaceCommIds(tokenReplaced, state.commIdMapping);
   state.webSocket.send(text);
   state.logger.debug(`WS_SEND sent: ${text}`);
 }
@@ -374,6 +416,9 @@ async function handleWsRecv(
         `Objects don't have same keys: expected [${expectingKeys}], got [${receivedKeys}]`,
       );
     }
+
+    // Extract comm_id mapping from shinywidgets_comm_open messages
+    extractCommIdMapping(expectingObj, receivedObj, state);
   }
 }
 
@@ -531,6 +576,7 @@ export async function runSession(
     httpClient,
     httpUrl,
     tokenDictionary,
+    commIdMapping: new Map(),
     recordingPath,
     logger,
     webSocket: null,
