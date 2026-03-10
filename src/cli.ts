@@ -5,6 +5,7 @@ import { defaultOutputDir } from "./output.js";
 import { parseLogLevel, LogLevel } from "./logger.js";
 import { getCreds } from "./auth.js";
 import { type Creds } from "./types.js";
+import { readRecording } from "./recording.js";
 
 // ---------------------------------------------------------------------------
 // ParsedArgs
@@ -101,7 +102,7 @@ export function parseArgs(argv?: string[]): ParsedArgs {
         "  shinycannon recording.log https://rsc.example.com/app --workers 3 --loaded-duration-minutes 10",
     )
     .argument("<recording>", "Path to recording file")
-    .argument("<app-url>", "URL of the Shiny application to interact with")
+    .argument("[app-url]", "URL of the Shiny application to interact with (defaults to target_url from recording)")
     .option("--workers <n>", "Number of workers to simulate", "1")
     .option(
       "--loaded-duration-minutes <n>",
@@ -151,11 +152,20 @@ export function parseArgs(argv?: string[]): ParsedArgs {
     logLevel: string;
   }>();
 
-  const [recordingPath, appUrl] = program.args as [string, string];
+  const [recordingPath, appUrlArg] = program.args as [string, string | undefined];
 
   // Validate recording file exists
   if (!fs.existsSync(recordingPath)) {
     throw new Error(`Recording file not found: ${recordingPath}`);
+  }
+
+  // Resolve app URL: CLI argument takes precedence, otherwise use target_url from recording
+  let appUrl: string;
+  if (appUrlArg) {
+    appUrl = appUrlArg;
+  } else {
+    const recording = readRecording(recordingPath);
+    appUrl = recording.props.targetUrl;
   }
 
   // Parse headers

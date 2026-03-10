@@ -132,7 +132,16 @@ describe("parseArgs", () => {
   beforeAll(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "shinycannon-cli-test-"));
     recordingFile = path.join(tmpDir, "recording.log");
-    fs.writeFileSync(recordingFile, "# placeholder recording\n");
+    fs.writeFileSync(
+      recordingFile,
+      [
+        "# version: 1",
+        "# target_url: http://recorded-host.example.com",
+        "# target_type: R/Shiny",
+        '{"type":"WS_OPEN","begin":"2020-01-01T00:00:00.000Z","url":"/websocket"}',
+        '{"type":"WS_CLOSE","begin":"2020-01-01T00:00:01.000Z"}',
+      ].join("\n"),
+    );
   });
 
   afterAll(() => {
@@ -153,6 +162,21 @@ describe("parseArgs", () => {
     expect(args.workers).toBe(1);
     expect(args.loadedDurationMinutes).toBe(5);
     expect(args.logLevel).toBe(LogLevel.WARN);
+  });
+
+  it("uses explicit app-url when provided", () => {
+    const args = parseArgs([
+      "node",
+      "script",
+      recordingFile,
+      "http://override.example.com",
+    ]);
+    expect(args.appUrl).toBe("http://override.example.com");
+  });
+
+  it("resolves app-url from recording target_url when omitted", () => {
+    const args = parseArgs(["node", "script", recordingFile]);
+    expect(args.appUrl).toBe("http://recorded-host.example.com");
   });
 });
 
