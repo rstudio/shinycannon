@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 
 import {
   randomHexString,
-  getTokens,
   replaceTokens,
   createTokenDictionary,
 } from "../tokens.js";
@@ -14,16 +13,6 @@ const urlDictionary = new Map([
   ["LMAO", " very funny!!! "],
 ]);
 
-describe("getTokens", () => {
-  it("extracts correct token names", () => {
-    expect(getTokens(testUrl)).toEqual(new Set(["LOL", "LMAO"]));
-  });
-
-  it("returns empty set when no tokens present", () => {
-    expect(getTokens("no tokens here")).toEqual(new Set());
-  });
-});
-
 describe("replaceTokens", () => {
   it("substitutes tokens correctly", () => {
     expect(replaceTokens(testUrl, allowedTokens, urlDictionary)).toBe(
@@ -31,11 +20,11 @@ describe("replaceTokens", () => {
     );
   });
 
-  it("throws on illegal token not in allowed set", () => {
-    const s = "foo${ILLEGAL}bar";
-    expect(() =>
-      replaceTokens(s, allowedTokens, urlDictionary),
-    ).toThrowError("illegal tokens");
+  it("ignores unknown ${...} patterns (e.g. JS template literals)", () => {
+    const s = "foo${LOL}bar${D}baz${E}";
+    expect(replaceTokens(s, allowedTokens, urlDictionary)).toBe(
+      "foo funny! bar${D}baz${E}",
+    );
   });
 
   it("throws on missing dictionary entry for allowed token", () => {
