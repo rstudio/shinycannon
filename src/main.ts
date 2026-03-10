@@ -60,6 +60,14 @@ async function main(): Promise<void> {
 
   ui?.showBanner();
 
+  // Ensure Ctrl+C / kill cleanly stops the spinner and exits
+  const handleSignal = (): void => {
+    ui?.cleanup();
+    process.exit(130);
+  };
+  process.on("SIGINT", handleSignal);
+  process.on("SIGTERM", handleSignal);
+
   await runEnduranceTest({
     httpUrl: args.appUrl,
     recording,

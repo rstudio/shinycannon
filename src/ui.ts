@@ -160,6 +160,11 @@ export class TerminalUI {
     ].join("\n");
   }
 
+  cleanup(): void {
+    this.stopUpdates();
+    this.spinner.stop();
+  }
+
   private stopUpdates(): void {
     if (this.updateTimer !== null) {
       clearInterval(this.updateTimer);
