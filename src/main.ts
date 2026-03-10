@@ -122,6 +122,7 @@ async function main(): Promise<void> {
   if (process.stdin.isTTY && typeof process.stdin.setRawMode === "function") {
     process.stdin.setRawMode(true);
     process.stdin.resume();
+    process.stdin.unref(); // Don't keep the event loop alive for this
     process.stdin.on("data", (chunk: Buffer) => {
       // Ctrl+C = 0x03, Ctrl+D = 0x04
       if (chunk[0] === 0x03 || chunk[0] === 0x04) {
