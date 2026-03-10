@@ -103,14 +103,25 @@ export interface SessionConfig {
   outputDir: string;
   argsString: string;
   argsJson: string;
+  signal?: AbortSignal;
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new Error("Aborted"));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener("abort", () => {
+      clearTimeout(timer);
+      reject(signal.reason ?? new Error("Aborted"));
+    }, { once: true });
+  });
 }
 
 function nowMs(): number {
@@ -197,6 +208,7 @@ interface SessionState {
   failure: Error | null;
   headers: Record<string, string>;
   creds: Creds;
+  signal?: AbortSignal;
 }
 
 function replaceSessionTokens(
@@ -212,7 +224,7 @@ async function handleReqHome(
 ): Promise<void> {
   const renderedUrl = replaceSessionTokens(event.url, state.tokenDictionary);
   const url = joinPaths(state.httpUrl, renderedUrl);
-  const resp = await state.httpClient.get(url);
+  const resp = await state.httpClient.get(url, state.signal);
   validateStatus(event.status, resp.statusCode, url, resp.body);
 
   const workerId = extractWorkerId(resp.body);
@@ -227,7 +239,7 @@ async function handleReqSinf(
 ): Promise<void> {
   const renderedUrl = replaceSessionTokens(event.url, state.tokenDictionary);
   const url = joinPaths(state.httpUrl, renderedUrl);
-  const resp = await state.httpClient.get(url);
+  const resp = await state.httpClient.get(url, state.signal);
   validateStatus(event.status, resp.statusCode, url, resp.body);
 }
 
@@ -237,7 +249,7 @@ async function handleReqTok(
 ): Promise<void> {
   const renderedUrl = replaceSessionTokens(event.url, state.tokenDictionary);
   const url = joinPaths(state.httpUrl, renderedUrl);
-  const resp = await state.httpClient.get(url);
+  const resp = await state.httpClient.get(url, state.signal);
   validateStatus(event.status, resp.statusCode, url, resp.body);
   state.tokenDictionary.set("TOKEN", extractToken(resp.body));
 }
@@ -248,7 +260,7 @@ async function handleReqGet(
 ): Promise<void> {
   const renderedUrl = replaceSessionTokens(event.url, state.tokenDictionary);
   const url = joinPaths(state.httpUrl, renderedUrl);
-  const resp = await state.httpClient.get(url);
+  const resp = await state.httpClient.get(url, state.signal);
   validateStatus(event.status, resp.statusCode, url, resp.body);
 }
 
@@ -282,7 +294,7 @@ async function handleReqPost(
     contentType = "application/octet-stream";
   }
 
-  const resp = await state.httpClient.post(url, body, contentType);
+  const resp = await state.httpClient.post(url, body, contentType, state.signal);
   validateStatus(event.status, resp.statusCode, url, resp.body);
 }
 
@@ -391,7 +403,7 @@ async function handleWsRecv(
     state.logger.warn(
       `WS_RECV line ${event.lineNumber}: Haven't received message after ${elapsed} seconds`,
     );
-  });
+  }, state.signal);
   state.logger.debug(`WS_RECV received: ${receivedStr}`);
 
   const expectingStr = replaceSessionTokens(event.message, state.tokenDictionary);
@@ -434,7 +446,7 @@ async function handleWsRecvInit(
     state.logger.warn(
       `WS_RECV_INIT line ${event.lineNumber}: Haven't received message after ${elapsed} seconds`,
     );
-  });
+  }, state.signal);
   state.logger.debug(`WS_RECV_INIT received: ${receivedStr}`);
 
   const parsed = parseMessage(receivedStr);
@@ -466,7 +478,7 @@ async function handleWsRecvBeginUpload(
     state.logger.warn(
       `WS_RECV_BEGIN_UPLOAD line ${event.lineNumber}: Haven't received message after ${elapsed} seconds`,
     );
-  });
+  }, state.signal);
   state.logger.debug(`WS_RECV_BEGIN_UPLOAD received: ${receivedStr}`);
 
   const parsed = parseMessage(receivedStr);
@@ -550,6 +562,7 @@ export async function runSession(
     argsString,
     argsJson,
   } = config;
+  const signal = config.signal;
 
   const cookieJar = new CookieJar();
   const tokenDictionary = createTokenDictionary();
@@ -583,6 +596,7 @@ export async function runSession(
     failure: null,
     headers,
     creds,
+    signal,
   };
 
   let started = false;
@@ -614,7 +628,7 @@ export async function runSession(
         0,
         "",
       );
-      await sleep(startDelayMs);
+      await sleep(startDelayMs, signal);
       writer.writeCsv(
         sessionId,
         workerId,
@@ -648,7 +662,7 @@ export async function runSession(
           event.lineNumber,
           "",
         );
-        await sleep(sleepFor);
+        await sleep(sleepFor, signal);
         writer.writeCsv(
           sessionId,
           workerId,
@@ -663,6 +677,10 @@ export async function runSession(
       // Check for async failure (e.g. WebSocket error during sleep)
       if (state.failure !== null) {
         throw state.failure;
+      }
+
+      if (signal?.aborted) {
+        throw signal.reason ?? new Error("Aborted");
       }
 
       // Handle the event with START/END logging

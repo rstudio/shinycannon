@@ -104,14 +104,15 @@ export class HttpClient {
     this.customHeaders = headers;
   }
 
-  async get(url: string): Promise<HttpResponse> {
-    return this.request(url, { method: "GET" });
+  async get(url: string, signal?: AbortSignal): Promise<HttpResponse> {
+    return this.request(url, { method: "GET", signal });
   }
 
   async post(
     url: string,
     body?: string | Buffer,
     contentType?: string,
+    signal?: AbortSignal,
   ): Promise<HttpResponse> {
     const headers: Record<string, string> = {};
     if (contentType) {
@@ -121,15 +122,17 @@ export class HttpClient {
       method: "POST",
       headers,
       body: body ?? null,
+      signal,
     });
   }
 
   async postForm(
     url: string,
     fields: Record<string, string>,
+    signal?: AbortSignal,
   ): Promise<HttpResponse> {
     const encoded = new URLSearchParams(fields).toString();
-    return this.post(url, encoded, "application/x-www-form-urlencoded");
+    return this.post(url, encoded, "application/x-www-form-urlencoded", signal);
   }
 
   // -------------------------------------------------------------------------
@@ -142,6 +145,7 @@ export class HttpClient {
       method: string;
       headers?: Record<string, string>;
       body?: string | Buffer | null;
+      signal?: AbortSignal;
     },
   ): Promise<HttpResponse> {
     const cookieString = await this.cookieJar.getCookieString(url);
@@ -161,6 +165,7 @@ export class HttpClient {
       headers,
       body: init.body,
       redirect: "follow",
+      signal: init.signal,
     });
 
     // Store cookies from response

@@ -48,13 +48,18 @@ export class AsyncQueue<T> {
   /**
    * Wait for an item with a timeout. Returns the item or null on timeout.
    */
-  poll(timeoutMs: number): Promise<T | null> {
+  poll(timeoutMs: number, signal?: AbortSignal): Promise<T | null> {
     const item = this.items.shift();
     if (item !== undefined) {
       return Promise.resolve(item);
     }
 
     return new Promise<T | null>((resolve) => {
+      if (signal?.aborted) {
+        resolve(null);
+        return;
+      }
+
       const timer = setTimeout(() => {
         const idx = this.waiters.findIndex((w) => w.resolve === resolve);
         if (idx !== -1) {
@@ -63,7 +68,26 @@ export class AsyncQueue<T> {
         resolve(null);
       }, timeoutMs);
 
-      this.waiters.push({ resolve, timer });
+      const waiter: Waiter<T> = { resolve, timer };
+
+      const onAbort = () => {
+        clearTimeout(timer);
+        const idx = this.waiters.indexOf(waiter);
+        if (idx !== -1) {
+          this.waiters.splice(idx, 1);
+        }
+        resolve(null);
+      };
+
+      signal?.addEventListener("abort", onAbort, { once: true });
+
+      const originalResolve = resolve;
+      waiter.resolve = (value) => {
+        signal?.removeEventListener("abort", onAbort);
+        originalResolve(value);
+      };
+
+      this.waiters.push(waiter);
     });
   }
 
@@ -140,7 +164,7 @@ export class ShinyWebSocket {
    * calling warnFn each time a timeout occurs. Throws if an error message
    * is received.
    */
-  async receive(warnFn: (elapsedSeconds: number) => void): Promise<string> {
+  async receive(warnFn: (elapsedSeconds: number) => void, signal?: AbortSignal): Promise<string> {
     let elapsed = POLL_TIMEOUT_MS / 1000;
 
     while (true) {
@@ -148,12 +172,15 @@ export class ShinyWebSocket {
         throw this._terminalError;
       }
 
-      const msg = await this.receiveQueue.poll(POLL_TIMEOUT_MS);
+      if (signal?.aborted) throw signal.reason ?? new Error("Aborted");
+
+      const msg = await this.receiveQueue.poll(POLL_TIMEOUT_MS, signal);
 
       if (msg === null) {
         if (this._terminalError) {
           throw this._terminalError;
         }
+        if (signal?.aborted) throw signal.reason ?? new Error("Aborted");
         warnFn(elapsed);
         elapsed += POLL_TIMEOUT_MS / 1000;
         continue;

@@ -80,6 +80,7 @@ export async function runEnduranceTest(
 
   // Shared flag to signal workers to stop after loaded duration
   let keepWorking = true;
+  const abortController = new AbortController();
 
   // Per-worker warmup resolve functions
   const warmupPromises: Promise<void>[] = [];
@@ -121,6 +122,7 @@ export async function runEnduranceTest(
         outputDir,
         argsString,
         argsJson,
+        signal: abortController.signal,
       };
     }
 
@@ -161,6 +163,7 @@ export async function runEnduranceTest(
     logger.info("Stopped maintaining, waiting for workers to stop");
     ui?.startShutdown();
     keepWorking = false;
+    abortController.abort();
 
     // Wait for all workers to finish their current sessions
     await Promise.all(workerPromises);
