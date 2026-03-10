@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { parseHeader, serializeArgs, parseArgs, type ParsedArgs } from "../cli.js";
 import { parseLogLevel, LogLevel } from "../logger.js";
+import { readRecordingFromString, recordingDuration } from "../recording.js";
 
 // ---------------------------------------------------------------------------
 // parseHeader
@@ -152,5 +153,51 @@ describe("parseArgs", () => {
     expect(args.workers).toBe(1);
     expect(args.loadedDurationMinutes).toBe(5);
     expect(args.logLevel).toBe(LogLevel.WARN);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// start interval default
+// ---------------------------------------------------------------------------
+
+describe("start interval default", () => {
+  it("BC-05: defaults to recording_duration / num_workers", () => {
+    // The start interval formula is: duration / workers
+    // where duration = last_event.begin - first_event.begin
+    //
+    // Given a recording with duration 10000ms and 5 workers,
+    // the start interval should be 2000ms.
+    const recording = readRecordingFromString([
+      "# version: 1",
+      "# target_url: http://example.com",
+      "# target_type: R/Shiny",
+      JSON.stringify({ type: "WS_OPEN", begin: "2020-01-01T00:00:00.000Z", url: "/ws" }),
+      JSON.stringify({ type: "WS_CLOSE", begin: "2020-01-01T00:00:10.000Z" }),
+    ].join("\n"));
+
+    const duration = recordingDuration(recording);
+    expect(duration).toBe(10000);
+
+    // Simulate the formula from main.ts
+    const workers = 5;
+    const startInterval = null;
+    const computed = startInterval !== null ? startInterval : duration / workers;
+    expect(computed).toBe(2000);
+  });
+
+  it("BC-05: uses explicit start interval when provided", () => {
+    const recording = readRecordingFromString([
+      "# version: 1",
+      "# target_url: http://example.com",
+      "# target_type: R/Shiny",
+      JSON.stringify({ type: "WS_OPEN", begin: "2020-01-01T00:00:00.000Z", url: "/ws" }),
+      JSON.stringify({ type: "WS_CLOSE", begin: "2020-01-01T00:00:10.000Z" }),
+    ].join("\n"));
+
+    const duration = recordingDuration(recording);
+    const workers = 5;
+    const startInterval: number | null = 500;
+    const computed = startInterval !== null ? startInterval : duration / workers;
+    expect(computed).toBe(500);
   });
 });

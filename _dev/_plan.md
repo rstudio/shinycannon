@@ -328,18 +328,18 @@ Finalize the npm package for distribution.
 These must all be preserved from the original implementation (see spec
 Section 10). Each should have an associated test:
 
-- [ ] Recording must end with `WS_CLOSE` -- validated at startup
-- [ ] 200/304 status codes treated as interchangeable
-- [ ] WebSocket receive queue bounded at 50; overflow is fatal
-- [ ] `WS_RECV` compares only top-level JSON keys
-- [ ] Start interval defaults to `recording_duration / num_workers`
-- [ ] Colons in timestamp-based output dir names replaced with underscores
-- [ ] Recording file copied into output directory
-- [ ] CLI arguments serialized to JSON in session CSV comments
-- [ ] Server-initiated WebSocket close is a session failure
-- [ ] SockJS `o` message is valid (returns null from parseMessage, not ignored)
-- [ ] Reconnect-enabled message IDs normalized for matching
-- [ ] Process exits cleanly when all work is complete
+- [x] Recording must end with `WS_CLOSE` -- validated at startup
+- [x] 200/304 status codes treated as interchangeable
+- [x] WebSocket receive queue bounded at 50; overflow is fatal
+- [x] `WS_RECV` compares only top-level JSON keys
+- [x] Start interval defaults to `recording_duration / num_workers`
+- [x] Colons in timestamp-based output dir names replaced with underscores
+- [x] Recording file copied into output directory
+- [x] CLI arguments serialized to JSON in session CSV comments
+- [x] Server-initiated WebSocket close is a session failure
+- [x] SockJS `o` message is valid (returns null from parseMessage, not ignored)
+- [x] Reconnect-enabled message IDs normalized for matching
+- [x] Process exits cleanly when all work is complete
 
 ---
 

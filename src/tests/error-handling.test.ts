@@ -240,6 +240,19 @@ describe("error handling", { timeout: 30_000 }, () => {
     }
   });
 
+  it("records failure on WebSocket queue overflow (BC-03)", async () => {
+    // Send 60 messages (> RECEIVE_QUEUE_SIZE of 50) before session can consume them
+    const mock = new MockShinyServer({ wsFloodCount: 60 });
+    await mock.start();
+    try {
+      const result = await runSessionAndReadCsv(mock, 106);
+      expect(result.events).toContain("PLAYBACK_FAIL");
+      expect(result.stats.getCounts().failed).toBe(1);
+    } finally {
+      await mock.stop();
+    }
+  });
+
   it("always writes PLAYER_SESSION_CREATE even on failure", async () => {
     const mock = new MockShinyServer({ homeStatus: 500 });
     await mock.start();

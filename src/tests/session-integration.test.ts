@@ -193,6 +193,114 @@ describe("Session Integration", { timeout: 30000 }, () => {
     expect(fs.existsSync(csvPath)).toBe(true);
   });
 
+  it("BC-04: WS_RECV matches on keys only, ignoring values", async () => {
+    // Server responds with same keys but completely different values
+    const altMock = new MockShinyServer({
+      wsRecvResponse: JSON.stringify({
+        values: { x: 999 },
+        inputMessages: ["something"],
+        errors: { e: "oops" },
+      }),
+    });
+    await altMock.start();
+    try {
+      const tmpDir2 = fs.mkdtempSync(path.join(os.tmpdir(), "shinycannon-bc04-"));
+      const recPath = path.join(tmpDir2, "recording.log");
+      fs.writeFileSync(recPath, altMock.makeRecording());
+      const outDir = path.join(tmpDir2, "output");
+      createOutputDir({ outputDir: outDir, overwrite: false, version: "test", recordingPath: recPath });
+
+      const rec = readRecordingFromString(fs.readFileSync(recPath, "utf-8"));
+      const stats = new Stats();
+      const logger = createLogger({ name: "test", consoleLevel: LogLevel.ERROR });
+
+      await runSession(
+        {
+          sessionId: 900,
+          workerId: 0,
+          iterationId: 0,
+          httpUrl: altMock.url,
+          recording: rec,
+          recordingPath: recPath,
+          headers: {},
+          creds: { user: null, pass: null, connectApiKey: null },
+          logger,
+          outputDir: outDir,
+          argsString: "test",
+          argsJson: "{}",
+        },
+        stats,
+      );
+
+      const csvPath = path.join(outDir, "sessions", "900_0_0.csv");
+      const lines = fs.readFileSync(csvPath, "utf-8").split("\n").filter((l) => l.length > 0);
+      const events = lines
+        .filter((l) => !l.startsWith("#") && !l.startsWith("session_id"))
+        .map((l) => l.split(",")[3]!)
+        .filter(Boolean);
+
+      expect(events).toContain("PLAYBACK_DONE");
+      expect(stats.getCounts().done).toBe(1);
+
+      fs.rmSync(tmpDir2, { recursive: true, force: true });
+    } finally {
+      await altMock.stop();
+    }
+  });
+
+  it("BC-04: WS_RECV fails when received keys differ from expected", async () => {
+    // Server responds with completely different keys
+    const altMock = new MockShinyServer({
+      wsRecvResponse: JSON.stringify({
+        differentKey: true,
+      }),
+    });
+    await altMock.start();
+    try {
+      const tmpDir2 = fs.mkdtempSync(path.join(os.tmpdir(), "shinycannon-bc04f-"));
+      const recPath = path.join(tmpDir2, "recording.log");
+      fs.writeFileSync(recPath, altMock.makeRecording());
+      const outDir = path.join(tmpDir2, "output");
+      createOutputDir({ outputDir: outDir, overwrite: false, version: "test", recordingPath: recPath });
+
+      const rec = readRecordingFromString(fs.readFileSync(recPath, "utf-8"));
+      const stats = new Stats();
+      const logger = createLogger({ name: "test", consoleLevel: LogLevel.ERROR });
+
+      await runSession(
+        {
+          sessionId: 901,
+          workerId: 0,
+          iterationId: 0,
+          httpUrl: altMock.url,
+          recording: rec,
+          recordingPath: recPath,
+          headers: {},
+          creds: { user: null, pass: null, connectApiKey: null },
+          logger,
+          outputDir: outDir,
+          argsString: "test",
+          argsJson: "{}",
+        },
+        stats,
+      );
+
+      const csvPath = path.join(outDir, "sessions", "901_0_0.csv");
+      const lines = fs.readFileSync(csvPath, "utf-8").split("\n").filter((l) => l.length > 0);
+      const events = lines
+        .filter((l) => !l.startsWith("#") && !l.startsWith("session_id"))
+        .map((l) => l.split(",")[3]!)
+        .filter(Boolean);
+
+      expect(events).toContain("PLAYBACK_FAIL");
+      expect(stats.getCounts().failed).toBe(1);
+
+      fs.rmSync(tmpDir2, { recursive: true, force: true });
+    } finally {
+      await altMock.stop();
+    }
+  });
+
   it("OUT-01: output dir has sessions/, recording.log, shinycannon-version.txt", () => {
     expect(fs.existsSync(path.join(outputDir, "sessions"))).toBe(true);
     expect(

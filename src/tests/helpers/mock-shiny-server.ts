@@ -14,6 +14,10 @@ export interface MockShinyServerOptions {
   wsRecvDelay?: number;
   /** If true, don't send WS init message at all */
   wsNoInit?: boolean;
+  /** Custom JSON string to send as WS_RECV response */
+  wsRecvResponse?: string;
+  /** If set, flood this many WS messages right after init (to overflow receive queue) */
+  wsFloodCount?: number;
 }
 
 export class MockShinyServer {
@@ -192,6 +196,12 @@ export class MockShinyServer {
         setTimeout(() => ws.close(), 10);
         return;
       }
+
+      if (this.options.wsFloodCount) {
+        for (let i = 0; i < this.options.wsFloodCount; i++) {
+          ws.send(JSON.stringify({ flood: i }));
+        }
+      }
     };
 
     if (initDelay > 0) {
@@ -203,7 +213,7 @@ export class MockShinyServer {
     ws.on("message", (_data) => {
       const recvDelay = this.options.wsRecvDelay ?? 0;
 
-      const response = JSON.stringify({
+      const response = this.options.wsRecvResponse ?? JSON.stringify({
         values: {},
         inputMessages: [],
         errors: {},
