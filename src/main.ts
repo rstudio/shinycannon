@@ -83,9 +83,10 @@ async function main(): Promise<void> {
     logger.warn("Could not detect server type; skipping server type validation.");
   }
 
-  // RSC URL fragment check
+  // RSC URL fragment check (fall back to recording type if detection failed)
+  const effectiveServerType = detectedServerType ?? recording.props.targetType;
   if (
-    detectedServerType === ServerType.RSC &&
+    effectiveServerType === ServerType.RSC &&
     args.appUrl.includes("#")
   ) {
     throw new Error(

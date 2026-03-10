@@ -173,6 +173,26 @@ describe("readRecordingFromString", () => {
       readRecordingFromString(makeRecording(headers, events)),
     ).toThrow("Invalid recording version");
   });
+
+  it("throws on version 0", () => {
+    const headers = [
+      "# version: 0",
+      "# target_url: http://localhost:3838",
+      "# target_type: R/Shiny",
+    ];
+    const events = [{ type: "WS_CLOSE", begin: T0 }];
+    expect(() =>
+      readRecordingFromString(makeRecording(headers, events)),
+    ).toThrow("Invalid recording version");
+  });
+
+  it("includes upgrade suggestion in missing property error", () => {
+    const headers = ["# version: 1", "# target_url: http://localhost:3838"];
+    const events = [{ type: "WS_CLOSE", begin: T0 }];
+    expect(() =>
+      readRecordingFromString(makeRecording(headers, events)),
+    ).toThrow("you may need to upgrade shinyloadtest");
+  });
 });
 
 describe("recordingDuration", () => {
