@@ -1,7 +1,7 @@
 ## Project
 
-TypeScript rewrite of shinycannon (Shiny load-testing tool, originally Kotlin).
-Plan: `_dev/_plan.md`. Spec: `_dev/00-spec-shinycannon.md`. Kotlin archive: `_archive/kotlin/`.
+shinycannon — Shiny load-testing tool (TypeScript, rewritten from Kotlin).
+Plan: `_dev/_plan.md`. Spec: `_dev/00-spec-shinycannon.md`.
 
 ## Execution Model
 
@@ -49,7 +49,7 @@ When in doubt, use Sonnet. Escalate to Opus after two failed Sonnet attempts.
 ## Delegation Tips
 
 - Provide full context: spec section, types/interfaces, file paths, expected output
-- Reference Kotlin original when helpful: `_archive/kotlin/src/main/kotlin/com/rstudio/shinycannon/<File>.kt`
+- Reference Kotlin original in git history when helpful (removed in the archive cleanup commit)
 - Use `run_in_background: true` for independent tasks
 - Batch independent work; sequence dependent work
 

@@ -85,13 +85,6 @@ leverage it fully:
 
 ```
 shinycannon/
-  _archive/
-    kotlin/                   # Original source (reference during rewrite)
-      src/
-      pom.xml
-      Makefile
-      Dockerfile
-      ...
   _dev/
     00-spec-shinycannon.md    # Feature spec
     01-research-*.md          # Technology research
@@ -133,28 +126,9 @@ shinycannon/
 
 ### Phase 0: Repository Reorganization ✅ COMPLETE
 
-Archive the Kotlin source and build infrastructure to make room for the
-TypeScript project. The Kotlin code is preserved on `main` and in git history;
-archiving it on this branch keeps it accessible for reference during
-implementation without cluttering the workspace.
-
-**Move to `_archive/kotlin/`:**
-
-- `src/` (Kotlin source and test files)
-- `pom.xml` (Maven config)
-- `Makefile` (fpm packaging)
-- `Dockerfile` (build container)
-- `shinycannon.iml` (IntelliJ project file)
-- `shinycannon.1.ronn` (man page source)
-- `head.sh` (self-extracting JAR preamble)
-
-**Keep in place:**
-
-- `_dev/` (spec, research, plan -- living documents)
-- `README.md` and `NEWS.md` (updated in Phase 5)
-- `.github/` (workflow replaced in Phase 5)
-- `.gitignore` (updated for `node_modules/`, `dist/`)
-- `.gitattributes`
+Archived the Kotlin source and build infrastructure, then removed the archive
+after the rewrite was complete and the Kotlin parity audit passed. The original
+Kotlin code is preserved in git history on the `main` branch.
 
 **Result:** A clean root directory ready for `package.json`, `tsconfig.json`,
 and `src/`.
