@@ -139,7 +139,13 @@ export function parseArgs(argv?: string[]): ParsedArgs {
     )
     .version(VERSION);
 
-  program.parse(argv ?? process.argv);
+  const raw = argv ?? process.argv;
+  // Show help when invoked with no arguments (just "node" and "script")
+  if (raw.length <= 2) {
+    program.help();
+  }
+
+  program.parse(raw);
 
   const opts = program.opts<{
     workers: string;

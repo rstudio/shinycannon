@@ -132,9 +132,11 @@ describe("CLI Process", () => {
     expect(result.stderr).not.toMatch(/missing.*argument/i);
   }, 10000);
 
-  // CLI-18: no arguments at all
-  it("no arguments exits non-zero", async () => {
+  // CLI-18: no arguments shows help
+  it("no arguments exits 0 and shows help", async () => {
     const result = await runCli([]);
-    expect(result.exitCode).not.toBe(0);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/Usage/i);
+    expect(result.stdout).toContain("--workers");
   }, 10000);
 });
