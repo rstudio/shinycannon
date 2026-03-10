@@ -361,6 +361,21 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
                     check(expectingObj.keySet() == receivedObj?.keySet()) {
                         "Objects don't have same keys: $expectingObj, $receivedObj"
                     }
+
+                    // Extract comm_id mapping from shinywidgets_comm_open messages
+                    val expectingCustom = expectingObj.get("custom")?.asJsonObject
+                    val receivedCustom = receivedObj?.get("custom")?.asJsonObject
+                    if (expectingCustom != null && receivedCustom != null) {
+                        val commOpenKey = "shinywidgets_comm_open"
+                        if (expectingCustom.has(commOpenKey) && receivedCustom.has(commOpenKey)) {
+                            val recordedCommId = extractCommId(expectingCustom.get(commOpenKey).asString)
+                            val actualCommId = extractCommId(receivedCustom.get(commOpenKey).asString)
+                            if (recordedCommId != null && actualCommId != null) {
+                                session.commIdMapping[recordedCommId] = actualCommId
+                                session.logger.debug("Mapped comm_id: $recordedCommId -> $actualCommId")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -423,7 +438,7 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
 
         override fun handle(session: ShinySession, out: PrintWriter) {
             withLog(session, out) {
-                val text = session.replaceTokens(message)
+                val text = session.replaceCommIds(session.replaceTokens(message))
                 session.webSocket!!.sendText(text)
                 session.logger.debug("WS_SEND sent: $text")
             }
@@ -442,4 +457,12 @@ sealed class Event(open val begin: Long, open val lineNumber: Int) {
             }
         }
     }
+}
+
+private fun extractCommId(commOpenJson: String): String? {
+    return try {
+        JsonParser.parseString(commOpenJson).asJsonObject
+                ?.get("content")?.asJsonObject
+                ?.get("comm_id")?.asString
+    } catch (e: Exception) { null }
 }

@@ -156,7 +156,15 @@ class ShinySession(val sessionId: Int,
 
     val cookieStore = BasicCookieStore()
 
+    val commIdMapping: LinkedHashMap<String, String> = linkedMapOf()
+
     fun replaceTokens(s: String) = replaceTokens(s, allowedTokens, tokenDictionary)
+
+    fun replaceCommIds(s: String): String {
+        return commIdMapping.entries.fold(s) { result, (recorded, actual) ->
+            result.replace(recorded, actual)
+        }
+    }
 
     private fun maybeLogin() {
       // Connect API Key has preference
