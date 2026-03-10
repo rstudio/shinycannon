@@ -8,6 +8,7 @@ import { runSession, Stats } from "../session.js";
 import { readRecordingFromString } from "../recording.js";
 import { MockShinyServer } from "./helpers/mock-shiny-server.js";
 import { createLogger, LogLevel } from "../logger.js";
+import type { Logger } from "../logger.js";
 import { createOutputDir } from "../output.js";
 
 /** Get an unused local port by briefly binding and releasing. */
@@ -195,7 +196,14 @@ describe("error handling", { timeout: 30_000 }, () => {
 
       const recording = readRecordingFromString(recordingContent);
       const stats = new Stats();
-      const logger = createLogger({ name: "test", consoleLevel: LogLevel.ERROR });
+      const errorMessages: string[] = [];
+      const logger: Logger = {
+        debug() {},
+        info() {},
+        warn() {},
+        error(msg: string) { errorMessages.push(msg); },
+        child() { return this; },
+      };
 
       await runSession(
         {
@@ -224,6 +232,9 @@ describe("error handling", { timeout: 30_000 }, () => {
 
       expect(events).toContain("PLAYBACK_FAIL");
       expect(stats.getCounts().failed).toBe(1);
+      // Verify the error message specifically mentions "Datafile not found"
+      const datafileError = errorMessages.find((m) => m.includes("Datafile not found"));
+      expect(datafileError).toBeDefined();
     } finally {
       await mock.stop();
     }
