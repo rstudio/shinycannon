@@ -323,6 +323,35 @@ Finalize the npm package for distribution.
 
 ---
 
+### Post-Phase: Code Review & Kotlin Parity Audit ✅ COMPLETE
+
+Comprehensive review of the entire TypeScript codebase against the Kotlin
+original and spec. Conducted via parallel subagent reviews (core logic,
+network layer, session/worker/orchestration, Kotlin parity comparison).
+
+**Fixes applied:**
+
+- Added `process.exit(0)` after successful completion (spec constraint #13)
+- Added server type detection at startup with mismatch warning
+- Added RSC URL `#` fragment validation (with fallback to recording type)
+- Added reverse API key validation (bidirectional)
+- Fixed logger double-printing error messages
+- Fixed recording version 0 being incorrectly accepted
+- Renamed main thread logger from `"main"` to `"thread00"` (Kotlin parity)
+- Added upgrade suggestion to missing recording property error
+- Removed unused eslint-disable directive
+- Added tests for version 0 rejection and upgrade suggestion
+
+**Intentional divergences documented in `_dev/_review.md`:**
+
+- Token extraction trims response body (item 5)
+- Token validation is lenient for `${...}` patterns (item 6)
+- `fsyncSync` on every CSV row write (item 7)
+
+**Test results:** 171/171 passing, typecheck clean, lint clean, build clean.
+
+---
+
 ## Behavioral Constraints Checklist
 
 These must all be preserved from the original implementation (see spec
