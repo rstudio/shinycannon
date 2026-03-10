@@ -40,7 +40,9 @@ function readProps(lines: readonly string[]): RecordingProps {
   // Validate required properties
   for (const key of ["version", "target_url", "target_type"]) {
     if (!raw.has(key)) {
-      throw new Error(`Recording is missing required property: ${key}`);
+      throw new Error(
+        `Recording is missing required property: ${key}; you may need to upgrade shinyloadtest and make a new recording`,
+      );
     }
   }
 
@@ -49,7 +51,7 @@ function readProps(lines: readonly string[]): RecordingProps {
     throw new Error(`Invalid recording version: ${versionStr}`);
   }
   const version = Number(versionStr);
-  if (version < 0) {
+  if (version < 1) {
     throw new Error(`Invalid recording version: ${raw.get("version")}`);
   }
   if (version > RECORDING_VERSION) {

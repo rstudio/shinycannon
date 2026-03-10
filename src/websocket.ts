@@ -143,7 +143,6 @@ export class ShinyWebSocket {
   async receive(warnFn: (elapsedSeconds: number) => void): Promise<string> {
     let elapsed = POLL_TIMEOUT_MS / 1000;
 
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       if (this._terminalError) {
         throw this._terminalError;

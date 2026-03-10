@@ -82,10 +82,6 @@ export function createLogger(options: LoggerOptions): Logger {
     // Console: print if at or above console level
     if (level >= consoleLevel) {
       console.error(line);
-      if (err && level === LogLevel.ERROR) {
-        // Console gets short error message only
-        console.error(formatLine(level, name, err.message));
-      }
     }
 
     // Debug file: all messages
