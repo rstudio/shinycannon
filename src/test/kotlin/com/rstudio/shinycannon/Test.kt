@@ -1,5 +1,6 @@
 package com.rstudio.shinycannon
 
+import com.xenomachina.argparser.ArgParser
 import org.junit.Assert
 import org.junit.Test
 import java.io.ByteArrayOutputStream
@@ -90,5 +91,29 @@ class Test {
                 "          <div class=\"logo-wrapper\">"
 
         Assert.assertFalse(hasShinyJs(nonsenseMarkup))
+    }
+
+    @Test
+    fun testReceiveQueueSizeDefault() {
+        val args = Args(ArgParser(arrayOf("recording.log", "http://localhost:3838")))
+        Assert.assertEquals(50, args.receiveQueueSize)
+    }
+
+    @Test
+    fun testReceiveQueueSizeCustom() {
+        val args = Args(ArgParser(arrayOf("recording.log", "http://localhost:3838", "--receive-queue-size", "100")))
+        Assert.assertEquals(100, args.receiveQueueSize)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun testReceiveQueueSizeZeroInvalid() {
+        val args = Args(ArgParser(arrayOf("recording.log", "http://localhost:3838", "--receive-queue-size", "0")))
+        args.receiveQueueSize
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun testReceiveQueueSizeNegativeInvalid() {
+        val args = Args(ArgParser(arrayOf("recording.log", "http://localhost:3838", "--receive-queue-size", "-5")))
+        args.receiveQueueSize
     }
 }

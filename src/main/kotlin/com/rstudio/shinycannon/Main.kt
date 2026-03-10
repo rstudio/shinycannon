@@ -117,7 +117,8 @@ class ShinySession(val sessionId: Int,
                    val recording: File,
                    var script: ArrayList<Event>,
                    val logger: Logger,
-                   val creds: Creds) {
+                   val creds: Creds,
+                   val receiveQueueSize: Int) {
 
     // This is something like an interrupt. It's checked in every iteration of the run-loop.
     // If it's non-null, the run-loop will terminate.
@@ -150,7 +151,6 @@ class ShinySession(val sessionId: Int,
     )
 
     var webSocket: WebSocket? = null
-    val receiveQueueSize = 50
     val receiveQueue: LinkedBlockingQueue<WSMessage> = LinkedBlockingQueue(receiveQueueSize)
 
     var lastEventEnded: Long? = null
@@ -325,7 +325,9 @@ class EnduranceTest(val argsStr: String,
                     // Number of workers to maintain
                     val numWorkers: Int,
                     val outputDir: File,
-                    val logger: Logger) {
+                    val logger: Logger,
+                    val receiveQueueSize: Int = 50
+                    ) {
 
     val columnNames = arrayOf("session_id", "worker_id", "iteration", "event", "timestamp", "input_line_number", "comment")
 
@@ -376,7 +378,7 @@ class EnduranceTest(val argsStr: String,
                 .toFile()
 
         fun startSession(sessionId: Int, workerId: Int, iterationId: Int, delay: Int = 0) {
-            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, headers, recording, log, logger, creds)
+            val session = ShinySession(sessionId, workerId, iterationId, httpUrl, headers, recording, log, logger, creds, receiveQueueSize)
             val outputFile = makeOutputFile(sessionId, workerId, iterationId)
             outputFile.printWriter().use { out ->
                 out.println("# " + argsStr)
@@ -472,6 +474,12 @@ class Args(parser: ArgParser) {
     val logLevel by parser.storing("Log level (default: warn, available include: debug, info, warn, error)") {
       Level.toLevel(this.toUpperCase(), Level.WARN) as Level
     }.default(Level.WARN)
+
+    val receiveQueueSize by parser.storing("Size of the WS receive queue for websocket messages that arrive out of order. Default is 50. (Advanced usage only)") {
+        toInt().also {
+            require(it > 0) { "receiveQueueSize must be greater than 0, but was $it" }
+        }
+    }.default(50)
 
     // retrieving here, but values are not parsed from directly supplied args
     val creds = getCreds()
@@ -658,7 +666,8 @@ fun main(userArgs: Array<String>) = mainBody("shinycannon") {
                 outputDir = output,
                 warmupInterval = computedStartInterval,
                 loadedDurationMinutes = loadedDurationMinutes,
-                logger = appLogger)
+                logger = appLogger,
+                receiveQueueSize = receiveQueueSize)
         loadTest.run()
     }
 }
