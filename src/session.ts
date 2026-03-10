@@ -326,7 +326,8 @@ async function handleWsOpen(
   state.webSocket = ws;
 }
 
-function extractCommId(commOpenJson: string): string | null {
+/** @internal Exported for testing. */
+export function extractCommId(commOpenJson: string): string | null {
   try {
     const obj = JSON.parse(commOpenJson) as Record<string, unknown>;
     const content = obj["content"] as Record<string, unknown> | undefined;
@@ -356,7 +357,8 @@ function extractCommIdMapping(
   }
 }
 
-function replaceCommIds(s: string, commIdMapping: ReadonlyMap<string, string>): string {
+/** @internal Exported for testing. */
+export function replaceCommIds(s: string, commIdMapping: ReadonlyMap<string, string>): string {
   let result = s;
   for (const [recorded, actual] of commIdMapping) {
     result = result.replaceAll(recorded, actual);

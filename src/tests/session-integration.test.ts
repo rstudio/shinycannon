@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { MockShinyServer } from "./helpers/mock-shiny-server.js";
-import { runSession, Stats } from "../session.js";
+import { runSession, Stats, extractCommId, replaceCommIds } from "../session.js";
 import type { SessionConfig } from "../session.js";
 import { readRecordingFromString } from "../recording.js";
 import { createLogger, LogLevel } from "../logger.js";
@@ -299,6 +299,48 @@ describe("Session Integration", { timeout: 30000 }, () => {
       if (tmpDir2) fs.rmSync(tmpDir2, { recursive: true, force: true });
       await altMock.stop();
     }
+  });
+
+  describe("comm_id mapping helpers", () => {
+    it("extractCommId extracts comm_id from valid comm_open JSON", () => {
+      const json = JSON.stringify({
+        content: { comm_id: "abc-123", target_name: "jupyter.widget" },
+      });
+      expect(extractCommId(json)).toBe("abc-123");
+    });
+
+    it("extractCommId returns null for missing content", () => {
+      expect(extractCommId(JSON.stringify({ other: "data" }))).toBeNull();
+    });
+
+    it("extractCommId returns null for missing comm_id", () => {
+      const json = JSON.stringify({ content: { target_name: "jupyter.widget" } });
+      expect(extractCommId(json)).toBeNull();
+    });
+
+    it("extractCommId returns null for non-string comm_id", () => {
+      const json = JSON.stringify({ content: { comm_id: 42 } });
+      expect(extractCommId(json)).toBeNull();
+    });
+
+    it("extractCommId returns null for malformed JSON", () => {
+      expect(extractCommId("not json")).toBeNull();
+    });
+
+    it("replaceCommIds substitutes all mapped IDs", () => {
+      const mapping = new Map([
+        ["aaa-111", "bbb-222"],
+        ["ccc-333", "ddd-444"],
+      ]);
+      const input = '{"comm_id":"aaa-111","ident":"comm-aaa-111","other":"ccc-333"}';
+      const result = replaceCommIds(input, mapping);
+      expect(result).toBe('{"comm_id":"bbb-222","ident":"comm-bbb-222","other":"ddd-444"}');
+    });
+
+    it("replaceCommIds returns input unchanged when mapping is empty", () => {
+      const input = '{"comm_id":"abc-123"}';
+      expect(replaceCommIds(input, new Map())).toBe(input);
+    });
   });
 
   it("OUT-01: output dir has sessions/, recording.log, shinycannon-version.txt", () => {
