@@ -5,7 +5,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 
 const MAIN_JS = path.resolve("dist/main.js");
-const FAKE_URL = "http://localhost:99999";
+const FAKE_URL = "http://127.0.0.1:65535";
 
 // Minimal valid recording content
 const RECORDING_CONTENT = [
@@ -68,14 +68,14 @@ describe("CLI Process", () => {
   it("--version exits 0 and prints version", async () => {
     const result = await runCli(["--version"]);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
+    expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+(-[\w.]+)?$/);
   }, 10000);
 
   // CLI-02: -V (short form)
   it("-V exits 0 and prints version", async () => {
     const result = await runCli(["-V"]);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
+    expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+(-[\w.]+)?$/);
   }, 10000);
 
   // CLI-04: --workers 0

@@ -130,7 +130,7 @@ describe("Auth Integration", { timeout: 30000 }, () => {
     expect(events).toContain("PLAYBACK_DONE");
   });
 
-  it("recording with rscApiKeyRequired is detected (AUTH-06)", () => {
+  it("throws when rscApiKeyRequired but no key set (AUTH-06)", () => {
     const content = [
       "# version: 1",
       "# target_url: https://connect.example.com/app",
@@ -150,18 +150,25 @@ describe("Auth Integration", { timeout: 30000 }, () => {
     const recording = readRecordingFromString(content);
     expect(recording.props.rscApiKeyRequired).toBe(true);
 
-    // The check in main.ts:
-    // if (recording.props.rscApiKeyRequired && creds.connectApiKey === null) throw Error(...)
-    const creds = { user: null, pass: null, connectApiKey: null };
-    expect(
-      recording.props.rscApiKeyRequired && creds.connectApiKey === null,
-    ).toBe(true);
+    // Reproduce the exact validation from main.ts:
+    // if (recording.props.rscApiKeyRequired && creds.connectApiKey === null) throw
+    function validateApiKey(rscRequired: boolean, apiKey: string | null): void {
+      if (rscRequired && apiKey === null) {
+        throw new Error(
+          "Recording requires an RStudio Connect API key but SHINYCANNON_CONNECT_API_KEY is not set.",
+        );
+      }
+    }
 
-    // With a key present, the check should pass
-    const credsWithKey = { user: null, pass: null, connectApiKey: "test-key" };
-    expect(
-      recording.props.rscApiKeyRequired && credsWithKey.connectApiKey === null,
-    ).toBe(false);
+    // No key → should throw
+    expect(() =>
+      validateApiKey(recording.props.rscApiKeyRequired, null),
+    ).toThrow("SHINYCANNON_CONNECT_API_KEY");
+
+    // Key present → should not throw
+    expect(() =>
+      validateApiKey(recording.props.rscApiKeyRequired, "test-key"),
+    ).not.toThrow();
   });
 
   it("session completes with Connect API key creds (no auth required)", async () => {

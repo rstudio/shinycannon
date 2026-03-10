@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { hasShinyJs, detectServerType } from "../detect.js";
+import type { HttpClient } from "../http.js";
 import { ServerType } from "../types.js";
 
 describe("hasShinyJs", () => {
@@ -30,7 +31,7 @@ describe("hasShinyJs", () => {
 
 describe("detectServerType", () => {
   it("detects x-powered-by: Express as SSP (DET-06)", async () => {
-    const httpClient = {
+    const httpClient: Pick<HttpClient, "get"> = {
       get: async () => ({
         statusCode: 200,
         headers: { "x-powered-by": "Express" },
@@ -39,7 +40,7 @@ describe("detectServerType", () => {
     };
     const result = await detectServerType(
       "https://example.com/app",
-      httpClient as any,
+      httpClient as HttpClient,
     );
     expect(result).toBe(ServerType.SSP);
   });

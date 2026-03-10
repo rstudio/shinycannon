@@ -204,37 +204,36 @@ These stay in `_dev/qa-test-plan.md` as manual checkboxes.
 
 ## Implementation Order
 
-### Phase A: Tier 1 (no new infrastructure)
+### Phase A: Tier 1 (no new infrastructure) ✅
 
-1. **cli.test.ts** — Unit tests for parseHeader, serializeArgs
-2. **cli-process.test.ts** — Process-level CLI tests
-3. Fill gaps in existing test files (invalid timestamp, x-powered-by SSP)
+1. ✅ **cli.test.ts** — 16 tests: parseHeader, serializeArgs, parseLogLevel, parseArgs
+2. ✅ **cli-process.test.ts** — 9 tests: --help, --version, invalid workers, missing args
+3. ✅ Fill gaps: invalid timestamp (NaN), negative version, x-powered-by SSP
 
-**Estimated:** ~20 new tests, ~1 hour of agent work
+**Result:** 28 new tests (104 → 132)
 
-### Phase B: Mock Server + Tier 2
+### Phase B: Mock Server + Tier 2 ✅
 
-1. **mock-shiny-server.ts** — The mock server helper
-2. **session-integration.test.ts** — Session playback against mock
-3. **worker-integration.test.ts** — Worker orchestration timing
-4. **error-handling.test.ts** — Error scenarios
-5. **auth-integration.test.ts** — Auth flow verification
+1. ✅ **mock-shiny-server.ts** — HTTP+WS mock server helper (~225 lines)
+2. ✅ **session-integration.test.ts** — 8 tests: event sequence, CSV format, timestamps, line numbers
+3. ✅ **worker-integration.test.ts** — 6 tests: multi-worker, iteration looping, timing, staggering
+4. ✅ **error-handling.test.ts** — 5 tests: connection refused, HTTP mismatch, WS disconnect
+5. ✅ **auth-integration.test.ts** — 4 tests: creds warning, API key flow, no-auth flow
 
-**Estimated:** ~30 new tests, ~2-3 hours of agent work
-(mock server is the critical path — once built, tests are straightforward)
+**Result:** 23 new tests (132 → 155)
 
-### Phase C: CI Configuration
+### Phase C: CI Configuration ✅
 
-- Ensure `npm test` runs both unit and integration tests
-- Integration tests may need longer vitest timeout (default 5s → 30s)
-- Consider separate vitest config for integration tests if speed is a concern
+- ✅ `npm test` runs both unit and integration tests (single vitest config)
+- ✅ vitest.config.ts updated with 30s testTimeout
+- No separate config needed — all 155 tests run in ~7s
 
 ---
 
 ## Success Criteria
 
-- `npm test` passes with ~150+ tests
-- All Tier 1 QA test IDs have automated coverage
-- All Tier 2 QA test IDs have automated coverage via mock server
-- No flaky tests (timing tests use generous tolerances)
-- CI (GitHub Actions) runs all tests on every PR
+- ✅ `npm test` passes with 155 tests (target: ~150+)
+- ✅ All Tier 1 QA test IDs have automated coverage
+- ✅ All Tier 2 QA test IDs have automated coverage via mock server
+- ✅ No flaky tests (timing tests use generous tolerances)
+- ⬜ CI (GitHub Actions) runs all tests on every PR (not yet configured)

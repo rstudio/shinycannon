@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import * as fs from "node:fs";
+import * as net from "node:net";
 import * as path from "node:path";
 import * as os from "node:os";
 
@@ -8,6 +9,18 @@ import { readRecordingFromString } from "../recording.js";
 import { MockShinyServer } from "./helpers/mock-shiny-server.js";
 import { createLogger, LogLevel } from "../logger.js";
 import { createOutputDir } from "../output.js";
+
+/** Get an unused local port by briefly binding and releasing. */
+function getUnusedPort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.listen(0, "127.0.0.1", () => {
+      const port = (srv.address() as net.AddressInfo).port;
+      srv.close(() => resolve(port));
+    });
+    srv.on("error", reject);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -18,40 +31,43 @@ async function runSessionAndReadCsv(
   sessionId: number,
 ): Promise<{ lines: string[]; stats: Stats; events: string[] }> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "shinycannon-err-"));
-  const recordingPath = path.join(tmpDir, "recording.log");
-  fs.writeFileSync(recordingPath, mock.makeRecording());
-  const outputDir = path.join(tmpDir, "output");
-  createOutputDir({ outputDir, overwrite: false, version: "test", recordingPath });
+  try {
+    const recordingPath = path.join(tmpDir, "recording.log");
+    fs.writeFileSync(recordingPath, mock.makeRecording());
+    const outputDir = path.join(tmpDir, "output");
+    createOutputDir({ outputDir, overwrite: false, version: "test", recordingPath });
 
-  const recording = readRecordingFromString(fs.readFileSync(recordingPath, "utf-8"));
-  const stats = new Stats();
-  const logger = createLogger({ name: "test", consoleLevel: LogLevel.ERROR });
+    const recording = readRecordingFromString(fs.readFileSync(recordingPath, "utf-8"));
+    const stats = new Stats();
+    const logger = createLogger({ name: "test", consoleLevel: LogLevel.ERROR });
 
-  await runSession(
-    {
-      sessionId,
-      workerId: 0,
-      iterationId: 0,
-      httpUrl: mock.url,
-      recording,
-      recordingPath,
-      headers: {},
-      creds: { user: null, pass: null, connectApiKey: null },
-      logger,
-      outputDir,
-      argsString: "test",
-      argsJson: "{}",
-    },
-    stats,
-  );
+    await runSession(
+      {
+        sessionId,
+        workerId: 0,
+        iterationId: 0,
+        httpUrl: mock.url,
+        recording,
+        recordingPath,
+        headers: {},
+        creds: { user: null, pass: null, connectApiKey: null },
+        logger,
+        outputDir,
+        argsString: "test",
+        argsJson: "{}",
+      },
+      stats,
+    );
 
-  const csvPath = path.join(outputDir, "sessions", `${sessionId}_0_0.csv`);
-  const lines = fs.readFileSync(csvPath, "utf-8").split("\n").filter((l) => l.length > 0);
-  const dataLines = lines.filter((l) => !l.startsWith("#") && !l.startsWith("session_id"));
-  const events = dataLines.map((l) => l.split(",")[3]!).filter(Boolean);
+    const csvPath = path.join(outputDir, "sessions", `${sessionId}_0_0.csv`);
+    const lines = fs.readFileSync(csvPath, "utf-8").split("\n").filter((l) => l.length > 0);
+    const dataLines = lines.filter((l) => !l.startsWith("#") && !l.startsWith("session_id"));
+    const events = dataLines.map((l) => l.split(",")[3]!).filter(Boolean);
 
-  fs.rmSync(tmpDir, { recursive: true, force: true });
-  return { lines, stats, events };
+    return { lines, stats, events };
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -72,7 +88,8 @@ describe("error handling", { timeout: 30_000 }, () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "shinycannon-err-"));
     tmpDirs.push(tmpDir);
 
-    const badUrl = "http://127.0.0.1:1";
+    const unusedPort = await getUnusedPort();
+    const badUrl = `http://127.0.0.1:${unusedPort}`;
     const recordingContent = [
       "# version: 1",
       `# target_url: ${badUrl}`,
@@ -149,6 +166,64 @@ describe("error handling", { timeout: 30_000 }, () => {
       const result = await runSessionAndReadCsv(mock, 103);
       expect(result.events).toContain("PLAYBACK_FAIL");
       expect(result.stats.getCounts().failed).toBe(1);
+    } finally {
+      await mock.stop();
+    }
+  });
+
+  it("reports 'Datafile not found' for missing REQ_POST datafile (ENOENT)", async () => {
+    const mock = new MockShinyServer();
+    await mock.start();
+    try {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "shinycannon-err-"));
+      tmpDirs.push(tmpDir);
+
+      // Recording with a REQ_POST that references a non-existent datafile
+      const recordingContent = [
+        "# version: 1",
+        `# target_url: ${mock.url}`,
+        "# target_type: R/Shiny",
+        JSON.stringify({ type: "REQ_HOME", begin: "2020-01-01T00:00:00.000Z", url: "/", status: 200 }),
+        JSON.stringify({ type: "REQ_POST", begin: "2020-01-01T00:00:00.100Z", url: "/upload", status: 200, datafile: "nonexistent.csv" }),
+        JSON.stringify({ type: "WS_CLOSE", begin: "2020-01-01T00:00:01.000Z" }),
+      ].join("\n");
+
+      const recordingPath = path.join(tmpDir, "recording.log");
+      fs.writeFileSync(recordingPath, recordingContent);
+      const outputDir = path.join(tmpDir, "output");
+      createOutputDir({ outputDir, overwrite: false, version: "test", recordingPath });
+
+      const recording = readRecordingFromString(recordingContent);
+      const stats = new Stats();
+      const logger = createLogger({ name: "test", consoleLevel: LogLevel.ERROR });
+
+      await runSession(
+        {
+          sessionId: 105,
+          workerId: 0,
+          iterationId: 0,
+          httpUrl: mock.url,
+          recording,
+          recordingPath,
+          headers: {},
+          creds: { user: null, pass: null, connectApiKey: null },
+          logger,
+          outputDir,
+          argsString: "test",
+          argsJson: "{}",
+        },
+        stats,
+      );
+
+      const csvPath = path.join(outputDir, "sessions", "105_0_0.csv");
+      const lines = fs.readFileSync(csvPath, "utf-8").split("\n").filter((l) => l.length > 0);
+      const events = lines
+        .filter((l) => !l.startsWith("#") && !l.startsWith("session_id"))
+        .map((l) => l.split(",")[3]!)
+        .filter(Boolean);
+
+      expect(events).toContain("PLAYBACK_FAIL");
+      expect(stats.getCounts().failed).toBe(1);
     } finally {
       await mock.stop();
     }

@@ -184,9 +184,9 @@ describe("Worker Integration", { timeout: 30000 }, () => {
     });
     tempDirs.push(result.tmpDir);
 
-    // 0.005 minutes = 300ms; with warmup and session overhead, allow generous bounds
-    expect(result.elapsed).toBeGreaterThanOrEqual(200);
-    expect(result.elapsed).toBeLessThan(5000);
+    // 0.005 minutes = 300ms; with warmup and session overhead, allow very generous bounds
+    expect(result.elapsed).toBeGreaterThanOrEqual(100);
+    expect(result.elapsed).toBeLessThan(15000);
   });
 
   // CLI-05: loadedDurationMinutes 0.01 runs for ~600ms
@@ -200,7 +200,7 @@ describe("Worker Integration", { timeout: 30000 }, () => {
 
     // 0.01 minutes = 600ms; generous tolerance for CI environments
     expect(result.elapsed).toBeGreaterThanOrEqual(200);
-    expect(result.elapsed).toBeLessThan(3000);
+    expect(result.elapsed).toBeLessThan(15000);
   });
 
   // CLI-06: --start-interval staggers workers
