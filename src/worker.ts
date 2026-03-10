@@ -8,6 +8,7 @@ import type { Logger } from "./logger.js";
 import { Stats, runSession } from "./session.js";
 import type { SessionConfig } from "./session.js";
 import type { Recording, Creds } from "./types.js";
+import type { TerminalUI } from "./ui.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,6 +27,7 @@ export interface EnduranceTestConfig {
   logger: Logger;
   argsString: string;
   argsJson: string;
+  ui?: TerminalUI;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,6 +58,7 @@ export async function runEnduranceTest(
     logger,
     argsString,
     argsJson,
+    ui,
   } = config;
 
   const stats = new Stats();
@@ -66,10 +69,14 @@ export async function runEnduranceTest(
     return sessionCounter++;
   }
 
-  // Progress reporting: log stats every 5 seconds
-  const progressInterval = setInterval(() => {
-    logger.info(stats.toString());
-  }, 5000);
+  // Progress reporting: log stats every 5 seconds (only when no UI)
+  const progressInterval = ui
+    ? null
+    : setInterval(() => {
+        logger.info(stats.toString());
+      }, 5000);
+
+  ui?.startWarmup();
 
   // Shared flag to signal workers to stop after loaded duration
   let keepWorking = true;
@@ -122,6 +129,7 @@ export async function runEnduranceTest(
       await runSession(buildSessionConfig(), stats);
     } finally {
       warmupResolvers[workerId]!();
+      ui?.workerReady();
     }
 
     // Subsequent sessions
@@ -146,10 +154,12 @@ export async function runEnduranceTest(
 
     // Maintain loaded duration
     logger.info(`Maintaining for ${loadedDurationMinutes} minutes`);
+    ui?.startLoaded(() => stats.getCounts());
     await sleep(loadedDurationMinutes * 60000);
 
     // Signal workers to stop
     logger.info("Stopped maintaining, waiting for workers to stop");
+    ui?.startShutdown();
     keepWorking = false;
 
     // Wait for all workers to finish their current sessions
@@ -158,7 +168,10 @@ export async function runEnduranceTest(
     // Final summary
     const counts = stats.getCounts();
     logger.info(`Complete. Failed: ${counts.failed}, Done: ${counts.done}`);
+    ui?.finish(counts);
   } finally {
-    clearInterval(progressInterval);
+    if (progressInterval !== null) {
+      clearInterval(progressInterval);
+    }
   }
 }

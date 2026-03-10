@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import { Command } from "commander";
+import { bold, cyan, dim, green, magenta, yellow } from "yoctocolors";
 import { VERSION } from "./version.js";
 import { defaultOutputDir } from "./output.js";
 import { parseLogLevel, LogLevel } from "./logger.js";
@@ -91,15 +92,27 @@ export function serializeArgs(args: ParsedArgs): {
 export function parseArgs(argv?: string[]): ParsedArgs {
   const program = new Command();
 
+  const colorArgument = (str: string): string => {
+    if (str.includes("recording")) return green(str);
+    if (str.includes("app-url")) return magenta(str);
+    return str;
+  };
+
   program
-    .name("shinycannon")
+    .configureHelp({
+      styleTitle: (str) => bold(str),
+      styleArgumentTerm: (str) => colorArgument(str),
+      styleArgumentText: (str) => colorArgument(str),
+      styleOptionTerm: (str) => cyan(str),
+    })
+    .name(bold(cyan("shinycannon")))
     .description(
       "Load generation tool for Shiny applications.\n\n" +
         "Provided a recording file and the URL of a deployed application,\n" +
         "shinycannon will play back the recording, simulating one or more\n" +
         "users interacting with the application over a configurable amount of time.\n\n" +
-        "Example:\n" +
-        "  shinycannon recording.log https://rsc.example.com/app --workers 3 --loaded-duration-minutes 10",
+        dim("Example:") + "\n" +
+        `  ${cyan("$")} shinycannon recording.log https://rsc.example.com/app --workers 3 --loaded-duration-minutes 10`,
     )
     .argument("<recording>", "Path to recording file")
     .argument("[app-url]", "URL of the Shiny application to interact with (defaults to target_url from recording)")
@@ -132,10 +145,10 @@ export function parseArgs(argv?: string[]): ParsedArgs {
     )
     .addHelpText(
       "after",
-      "\nEnvironment variables:\n" +
-        "  SHINYCANNON_USER              Username for SSP or Connect auth\n" +
-        "  SHINYCANNON_PASS              Password for SSP or Connect auth\n" +
-        "  SHINYCANNON_CONNECT_API_KEY   RStudio Connect API key",
+      `\n${bold("Environment variables:")}\n` +
+        `  ${yellow("SHINYCANNON_USER")}              Username for SSP or Connect auth\n` +
+        `  ${yellow("SHINYCANNON_PASS")}              Password for SSP or Connect auth\n` +
+        `  ${yellow("SHINYCANNON_CONNECT_API_KEY")}   RStudio Connect API key`,
     )
     .version(VERSION);
 

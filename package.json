@@ -25,11 +25,15 @@
     "type": "git",
     "url": "https://github.com/rstudio/shinycannon.git"
   },
-  "files": ["dist/"],
+  "files": [
+    "dist/"
+  ],
   "dependencies": {
     "commander": "^13.1.0",
+    "ora": "^9.3.0",
     "tough-cookie": "^5.1.2",
-    "ws": "^8.18.1"
+    "ws": "^8.18.1",
+    "yoctocolors": "^2.1.2"
   },
   "devDependencies": {
     "@types/node": "^20.17.24",
