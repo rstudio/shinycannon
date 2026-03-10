@@ -1,6 +1,6 @@
 # shinycannon 1.2.0
 
-* Added support for `--receive-queue-size` to set the size of queue for websocket messages received out of order. This parameter should only be necessary in rare cases where apps are not deterministic. (#71)
+* Added support for `--receive-queue-size` to set the size of the queue for websocket messages received out of order. This parameter should only be necessary in rare cases where apps are not deterministic. (#71)
 
 
 # shinycannon 1.1.3

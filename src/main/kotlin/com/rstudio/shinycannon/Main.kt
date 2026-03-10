@@ -475,8 +475,11 @@ class Args(parser: ArgParser) {
       Level.toLevel(this.toUpperCase(), Level.WARN) as Level
     }.default(Level.WARN)
 
-    val receiveQueueSize by parser.storing("Size of the WS receive queue for websocket messages that arrive out of order. Default is 50. (Advanced usage only)") { toInt() }
-            .default(50)
+    val receiveQueueSize by parser.storing("Size of the WS receive queue for websocket messages that arrive out of order. Default is 50. (Advanced usage only)") {
+        toInt().also {
+            require(it > 0) { "receiveQueueSize must be greater than 0, but was $it" }
+        }
+    }.default(50)
 
     // retrieving here, but values are not parsed from directly supplied args
     val creds = getCreds()
