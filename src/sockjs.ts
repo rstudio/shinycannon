@@ -55,17 +55,6 @@ export function parseMessage(msg: string): Record<string, unknown> | null {
 }
 
 /**
- * Check if a value is an empty array or empty object.
- */
-function isEmpty(value: unknown): boolean {
-  if (Array.isArray(value)) return value.length === 0;
-  if (typeof value === "object" && value !== null) {
-    return Object.keys(value).length === 0;
-  }
-  return false;
-}
-
-/**
  * Determine whether a SockJS message can be ignored during playback.
  *
  * Ignored messages include ACKs, heartbeats, busy/progress/recalculating
@@ -104,16 +93,17 @@ export function canIgnore(message: string): boolean {
   }
 
   // Step 6: empty update message
-  // R Shiny uses empty arrays; Python Shiny uses empty objects for values/errors
   if (keys.length === 3) {
     const errors = parsed["errors"];
     const values = parsed["values"];
     const inputMessages = parsed["inputMessages"];
     if (
+      Array.isArray(errors) &&
+      errors.length === 0 &&
+      Array.isArray(values) &&
+      values.length === 0 &&
       Array.isArray(inputMessages) &&
-      inputMessages.length === 0 &&
-      isEmpty(errors) &&
-      isEmpty(values)
+      inputMessages.length === 0
     ) {
       return true;
     }

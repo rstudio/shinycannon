@@ -114,7 +114,7 @@ export class MockShinyServer {
       JSON.stringify({
         type: "WS_RECV",
         begin: T6,
-        message: '{"values":{"x":1},"inputMessages":[],"errors":{}}',
+        message: '{"values":{},"inputMessages":[],"errors":{}}',
       }),
       JSON.stringify({ type: "WS_CLOSE", begin: T7 }),
     ];
@@ -214,7 +214,7 @@ export class MockShinyServer {
       const recvDelay = this.options.wsRecvDelay ?? 0;
 
       const response = this.options.wsRecvResponse ?? JSON.stringify({
-        values: { x: 1 },
+        values: {},
         inputMessages: [],
         errors: {},
       });

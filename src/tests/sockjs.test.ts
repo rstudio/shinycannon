@@ -63,18 +63,10 @@ describe("canIgnore", () => {
     expect(canIgnore('a["5#0|m|{\\"busy\\":\\"idle\\"}"]')).toBe(true);
   });
 
-  it("ignores empty update messages (R Shiny format with arrays)", () => {
+  it("ignores empty update messages", () => {
     expect(
       canIgnore(
         'a["6#0|m|{\\"errors\\":[],\\"values\\":[],\\"inputMessages\\":[]}"]',
-      ),
-    ).toBe(true);
-  });
-
-  it("ignores empty update messages (Python Shiny format with objects)", () => {
-    expect(
-      canIgnore(
-        '{"values":{},"inputMessages":[],"errors":{}}',
       ),
     ).toBe(true);
   });
