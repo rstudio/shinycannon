@@ -61,9 +61,10 @@ async function main(): Promise<void> {
   ui?.showBanner();
 
   // Ensure Ctrl+C / kill cleanly stops the spinner and exits
-  const handleSignal = (): void => {
+  const handleSignal = (signal: NodeJS.Signals): void => {
     ui?.cleanup();
-    process.exit(130);
+    const codes: Record<string, number> = { SIGINT: 130, SIGTERM: 143 };
+    process.exit(codes[signal] ?? 1);
   };
   process.on("SIGINT", handleSignal);
   process.on("SIGTERM", handleSignal);
