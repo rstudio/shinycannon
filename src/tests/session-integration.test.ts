@@ -203,8 +203,8 @@ describe("Session Integration", { timeout: 30000 }, () => {
       }),
     });
     await altMock.start();
+    const tmpDir2 = fs.mkdtempSync(path.join(os.tmpdir(), "shinycannon-bc04-"));
     try {
-      const tmpDir2 = fs.mkdtempSync(path.join(os.tmpdir(), "shinycannon-bc04-"));
       const recPath = path.join(tmpDir2, "recording.log");
       fs.writeFileSync(recPath, altMock.makeRecording());
       const outDir = path.join(tmpDir2, "output");
@@ -241,9 +241,8 @@ describe("Session Integration", { timeout: 30000 }, () => {
 
       expect(events).toContain("PLAYBACK_DONE");
       expect(stats.getCounts().done).toBe(1);
-
-      fs.rmSync(tmpDir2, { recursive: true, force: true });
     } finally {
+      fs.rmSync(tmpDir2, { recursive: true, force: true });
       await altMock.stop();
     }
   });
@@ -256,8 +255,8 @@ describe("Session Integration", { timeout: 30000 }, () => {
       }),
     });
     await altMock.start();
+    const tmpDir2 = fs.mkdtempSync(path.join(os.tmpdir(), "shinycannon-bc04f-"));
     try {
-      const tmpDir2 = fs.mkdtempSync(path.join(os.tmpdir(), "shinycannon-bc04f-"));
       const recPath = path.join(tmpDir2, "recording.log");
       fs.writeFileSync(recPath, altMock.makeRecording());
       const outDir = path.join(tmpDir2, "output");
@@ -294,9 +293,8 @@ describe("Session Integration", { timeout: 30000 }, () => {
 
       expect(events).toContain("PLAYBACK_FAIL");
       expect(stats.getCounts().failed).toBe(1);
-
-      fs.rmSync(tmpDir2, { recursive: true, force: true });
     } finally {
+      fs.rmSync(tmpDir2, { recursive: true, force: true });
       await altMock.stop();
     }
   });

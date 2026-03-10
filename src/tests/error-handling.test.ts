@@ -245,9 +245,55 @@ describe("error handling", { timeout: 30_000 }, () => {
     const mock = new MockShinyServer({ wsFloodCount: 60 });
     await mock.start();
     try {
-      const result = await runSessionAndReadCsv(mock, 106);
-      expect(result.events).toContain("PLAYBACK_FAIL");
-      expect(result.stats.getCounts().failed).toBe(1);
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "shinycannon-bc03-"));
+      tmpDirs.push(tmpDir);
+
+      const recordingPath = path.join(tmpDir, "recording.log");
+      fs.writeFileSync(recordingPath, mock.makeRecording());
+      const outputDir = path.join(tmpDir, "output");
+      createOutputDir({ outputDir, overwrite: false, version: "test", recordingPath });
+
+      const recording = readRecordingFromString(fs.readFileSync(recordingPath, "utf-8"));
+      const stats = new Stats();
+      const errorMessages: string[] = [];
+      const logger: Logger = {
+        debug() {},
+        info() {},
+        warn() {},
+        error(msg: string) { errorMessages.push(msg); },
+        child() { return this; },
+      };
+
+      await runSession(
+        {
+          sessionId: 106,
+          workerId: 0,
+          iterationId: 0,
+          httpUrl: mock.url,
+          recording,
+          recordingPath,
+          headers: {},
+          creds: { user: null, pass: null, connectApiKey: null },
+          logger,
+          outputDir,
+          argsString: "test",
+          argsJson: "{}",
+        },
+        stats,
+      );
+
+      const csvPath = path.join(outputDir, "sessions", "106_0_0.csv");
+      const lines = fs.readFileSync(csvPath, "utf-8").split("\n").filter((l) => l.length > 0);
+      const events = lines
+        .filter((l) => !l.startsWith("#") && !l.startsWith("session_id"))
+        .map((l) => l.split(",")[3]!)
+        .filter(Boolean);
+
+      expect(events).toContain("PLAYBACK_FAIL");
+      expect(stats.getCounts().failed).toBe(1);
+      // Verify the error is specifically about queue overflow
+      const overflowError = errorMessages.find((m) => m.includes("Message queue is full"));
+      expect(overflowError).toBeDefined();
     } finally {
       await mock.stop();
     }
