@@ -152,6 +152,7 @@ describe("parseArgs", () => {
     const args = parseArgs([
       "node",
       "script",
+      "loadtest",
       recordingFile,
       "http://example.com",
     ]);
@@ -168,6 +169,7 @@ describe("parseArgs", () => {
     const args = parseArgs([
       "node",
       "script",
+      "loadtest",
       recordingFile,
       "http://override.example.com",
     ]);
@@ -175,7 +177,7 @@ describe("parseArgs", () => {
   });
 
   it("resolves app-url from recording target_url when omitted", () => {
-    const args = parseArgs(["node", "script", recordingFile]);
+    const args = parseArgs(["node", "script", "loadtest", recordingFile]);
     expect(args.appUrl).toBe("http://recorded-host.example.com");
   });
 });

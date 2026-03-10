@@ -55,9 +55,17 @@ afterAll(() => {
 });
 
 describe("CLI Process", () => {
-  // CLI-01: --help
-  it("--help exits 0 and shows usage", async () => {
+  // CLI-01: --help (root)
+  it("--help exits 0 and lists subcommands", async () => {
     const result = await runCli(["--help"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/Usage/i);
+    expect(result.stdout).toContain("loadtest");
+  }, 10000);
+
+  // CLI-01: loadtest --help
+  it("loadtest --help exits 0 and shows loadtest usage", async () => {
+    const result = await runCli(["loadtest", "--help"]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/Usage/i);
     expect(result.stdout).toContain("--workers");
@@ -81,6 +89,7 @@ describe("CLI Process", () => {
   // CLI-04: --workers 0
   it("--workers 0 exits non-zero with error", async () => {
     const result = await runCli([
+      "loadtest",
       recordingPath,
       FAKE_URL,
       "--workers",
@@ -93,6 +102,7 @@ describe("CLI Process", () => {
   // CLI-04: --workers abc
   it("--workers abc exits non-zero with error", async () => {
     const result = await runCli([
+      "loadtest",
       recordingPath,
       FAKE_URL,
       "--workers",
@@ -105,6 +115,7 @@ describe("CLI Process", () => {
   // CLI-04: --workers 1.5
   it("--workers 1.5 exits non-zero with error", async () => {
     const result = await runCli([
+      "loadtest",
       recordingPath,
       FAKE_URL,
       "--workers",
@@ -117,6 +128,7 @@ describe("CLI Process", () => {
   // CLI-16: non-existent recording file
   it("non-existent recording exits non-zero with 'not found'", async () => {
     const result = await runCli([
+      "loadtest",
       path.join(tempDir, "does-not-exist.log"),
       FAKE_URL,
     ]);
@@ -128,7 +140,7 @@ describe("CLI Process", () => {
   // (The process will exit non-zero because the target_url is unreachable,
   // but the error should NOT be about missing arguments.)
   it("omitting app-url resolves from recording target_url", async () => {
-    const result = await runCli([recordingPath]);
+    const result = await runCli(["loadtest", recordingPath]);
     expect(result.exitCode).not.toBe(0);
     expect(result.stderr).not.toMatch(/missing.*argument/i);
   }, 10000);
@@ -138,6 +150,15 @@ describe("CLI Process", () => {
     const result = await runCli([]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/Usage/i);
+    expect(result.stdout).toContain("loadtest");
+  }, 10000);
+
+  // CLI-19: `loadtest` with no arguments shows loadtest help
+  it("loadtest with no arguments exits 0 and shows loadtest help", async () => {
+    const result = await runCli(["loadtest"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/Usage/i);
     expect(result.stdout).toContain("--workers");
+    expect(result.stdout).toContain("recording");
   }, 10000);
 });

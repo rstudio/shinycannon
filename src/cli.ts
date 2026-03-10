@@ -101,18 +101,29 @@ export function parseArgs(argv?: string[]): ParsedArgs {
   program
     .configureHelp({
       styleTitle: (str) => bold(str),
+      styleOptionTerm: (str) => cyan(str),
+    })
+    .name(bold(cyan("shinycannon")))
+    .description("Load generation tool for Shiny applications.")
+    .version(VERSION);
+
+  let result: ParsedArgs | undefined;
+
+  const loadtestCmd = program
+    .command("loadtest")
+    .configureHelp({
+      styleTitle: (str) => bold(str),
       styleArgumentTerm: (str) => colorArgument(str),
       styleArgumentText: (str) => colorArgument(str),
       styleOptionTerm: (str) => cyan(str),
     })
-    .name(bold(cyan("shinycannon")))
     .description(
-      "Load generation tool for Shiny applications.\n\n" +
+      "Run a load test against a deployed Shiny application.\n\n" +
         "Provided a recording file and the URL of a deployed application,\n" +
         "shinycannon will play back the recording, simulating one or more\n" +
         "users interacting with the application over a configurable amount of time.\n\n" +
         dim("Example:") + "\n" +
-        `  ${cyan("$")} shinycannon recording.log https://rsc.example.com/app --workers 3 --loaded-duration-minutes 10`,
+        `  ${cyan("$")} shinycannon loadtest recording.log https://rsc.example.com/app --workers 3 --loaded-duration-minutes 10`,
     )
     .argument("<recording>", "Path to recording file")
     .argument("[app-url]", "URL of the Shiny application to interact with (defaults to target_url from recording)")
@@ -150,87 +161,100 @@ export function parseArgs(argv?: string[]): ParsedArgs {
         `  ${yellow("SHINYCANNON_PASS")}              Password for SSP or Connect auth\n` +
         `  ${yellow("SHINYCANNON_CONNECT_API_KEY")}   RStudio Connect API key`,
     )
-    .version(VERSION);
+    .action((recordingPath: string, appUrlArg: string | undefined, opts: {
+      workers: string;
+      loadedDurationMinutes: string;
+      startInterval?: string;
+      header?: string[];
+      outputDir: string;
+      overwriteOutput: boolean;
+      debugLog: boolean;
+      logLevel: string;
+    }) => {
+      // Validate recording file exists
+      if (!fs.existsSync(recordingPath)) {
+        throw new Error(`Recording file not found: ${recordingPath}`);
+      }
+
+      // Resolve app URL: CLI argument takes precedence, otherwise use target_url from recording
+      let appUrl: string;
+      if (appUrlArg) {
+        appUrl = appUrlArg;
+      } else {
+        const recording = readRecording(recordingPath);
+        if (!recording.props.targetUrl) {
+          throw new Error(
+            "Recording does not contain a target_url; provide app-url explicitly",
+          );
+        }
+        appUrl = recording.props.targetUrl;
+      }
+
+      // Parse headers
+      const headers: Record<string, string> = {};
+      if (opts.header) {
+        for (const h of opts.header) {
+          const [name, value] = parseHeader(h);
+          headers[name] = value;
+        }
+      }
+
+      // Parse start interval
+      const startInterval =
+        opts.startInterval !== undefined ? Number(opts.startInterval) : null;
+      if (startInterval !== null && (!Number.isFinite(startInterval) || startInterval < 0)) {
+        throw new Error(`Invalid start-interval value: ${opts.startInterval}`);
+      }
+
+      const workers = Number(opts.workers);
+      if (!Number.isInteger(workers) || workers < 1) {
+        throw new Error(`Invalid workers value: ${opts.workers}`);
+      }
+
+      const loadedDurationMinutes = Number(opts.loadedDurationMinutes);
+      if (!Number.isFinite(loadedDurationMinutes) || loadedDurationMinutes <= 0) {
+        throw new Error(
+          `Invalid loaded-duration-minutes value: ${opts.loadedDurationMinutes}`,
+        );
+      }
+
+      result = {
+        recordingPath,
+        appUrl,
+        workers,
+        loadedDurationMinutes,
+        startInterval,
+        headers,
+        outputDir: opts.outputDir,
+        overwriteOutput: opts.overwriteOutput,
+        debugLog: opts.debugLog,
+        logLevel: parseLogLevel(opts.logLevel),
+        creds: getCreds(),
+      };
+    });
 
   const raw = argv ?? process.argv;
-  // Show help when invoked with no arguments (just "node" and "script")
-  if (raw.length <= 2) {
+  const userArgs = raw.slice(2);
+
+  // Show help when invoked with no arguments
+  if (userArgs.length === 0) {
     program.help();
+  }
+
+  // Show loadtest help when invoked as `shinycannon loadtest` with no further args
+  if (userArgs.length === 1 && userArgs[0] === "loadtest") {
+    loadtestCmd.help();
   }
 
   program.parse(raw);
 
-  const opts = program.opts<{
-    workers: string;
-    loadedDurationMinutes: string;
-    startInterval?: string;
-    header?: string[];
-    outputDir: string;
-    overwriteOutput: boolean;
-    debugLog: boolean;
-    logLevel: string;
-  }>();
-
-  const [recordingPath, appUrlArg] = program.args as [string, string | undefined];
-
-  // Validate recording file exists
-  if (!fs.existsSync(recordingPath)) {
-    throw new Error(`Recording file not found: ${recordingPath}`);
+  if (!result) {
+    // Commander already exits on --help/--version. If we get here, no
+    // subcommand matched. Show help and exit.
+    program.help();
+    // program.help() calls process.exit, but TypeScript doesn't know that.
+    throw new Error("unreachable");
   }
 
-  // Resolve app URL: CLI argument takes precedence, otherwise use target_url from recording
-  let appUrl: string;
-  if (appUrlArg) {
-    appUrl = appUrlArg;
-  } else {
-    const recording = readRecording(recordingPath);
-    if (!recording.props.targetUrl) {
-      throw new Error(
-        "Recording does not contain a target_url; provide app-url explicitly",
-      );
-    }
-    appUrl = recording.props.targetUrl;
-  }
-
-  // Parse headers
-  const headers: Record<string, string> = {};
-  if (opts.header) {
-    for (const h of opts.header) {
-      const [name, value] = parseHeader(h);
-      headers[name] = value;
-    }
-  }
-
-  // Parse start interval
-  const startInterval =
-    opts.startInterval !== undefined ? Number(opts.startInterval) : null;
-  if (startInterval !== null && (!Number.isFinite(startInterval) || startInterval < 0)) {
-    throw new Error(`Invalid start-interval value: ${opts.startInterval}`);
-  }
-
-  const workers = Number(opts.workers);
-  if (!Number.isInteger(workers) || workers < 1) {
-    throw new Error(`Invalid workers value: ${opts.workers}`);
-  }
-
-  const loadedDurationMinutes = Number(opts.loadedDurationMinutes);
-  if (!Number.isFinite(loadedDurationMinutes) || loadedDurationMinutes <= 0) {
-    throw new Error(
-      `Invalid loaded-duration-minutes value: ${opts.loadedDurationMinutes}`,
-    );
-  }
-
-  return {
-    recordingPath,
-    appUrl,
-    workers,
-    loadedDurationMinutes,
-    startInterval,
-    headers,
-    outputDir: opts.outputDir,
-    overwriteOutput: opts.overwriteOutput,
-    debugLog: opts.debugLog,
-    logLevel: parseLogLevel(opts.logLevel),
-    creds: getCreds(),
-  };
+  return result;
 }
