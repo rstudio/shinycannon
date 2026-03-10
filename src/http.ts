@@ -171,7 +171,7 @@ export class HttpClient {
     // Store cookies from response
     const setCookieHeaders = response.headers.getSetCookie();
     for (const setCookie of setCookieHeaders) {
-      await this.cookieJar.setCookie(setCookie, url);
+      await this.cookieJar.setCookie(setCookie, response.url);
     }
 
     // Build lowercased headers map
