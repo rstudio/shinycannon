@@ -140,7 +140,12 @@ describe("CLI Process", () => {
   // (The process will exit non-zero because the target_url is unreachable,
   // but the error should NOT be about missing arguments.)
   it("omitting app-url resolves from recording target_url", async () => {
-    const result = await runCli(["replay", recordingPath])
+    const result = await runCli([
+      "replay",
+      recordingPath,
+      "--output-dir",
+      path.join(tempDir, "output"),
+    ])
     expect(result.exitCode).not.toBe(0)
     expect(result.stderr).not.toMatch(/missing.*argument/i)
   }, 10000)
