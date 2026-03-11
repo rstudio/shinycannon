@@ -17,7 +17,7 @@
     "format": "prettier --write src/",
     "typecheck": "tsc --noEmit",
     "prepack": "npm run build",
-    "pre-push": "npm run format && npm run lint && npm run typecheck"
+    "pre-push": "npx prettier --check src/ && npm run lint && npm run typecheck"
   },
   "pre-push": [
     "pre-push"
