@@ -85,6 +85,9 @@ describe("getCreds", () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
+    delete process.env["SHINYLOADTEST_USER"];
+    delete process.env["SHINYLOADTEST_PASS"];
+    delete process.env["SHINYLOADTEST_CONNECT_API_KEY"];
     delete process.env["SHINYCANNON_USER"];
     delete process.env["SHINYCANNON_PASS"];
     delete process.env["SHINYCANNON_CONNECT_API_KEY"];
@@ -99,31 +102,53 @@ describe("getCreds", () => {
     expect(creds).toEqual({ user: null, pass: null, connectApiKey: null });
   });
 
-  it("reads user and pass from env vars", () => {
+  it("reads user and pass from SHINYLOADTEST_* env vars", () => {
+    process.env["SHINYLOADTEST_USER"] = "alice";
+    process.env["SHINYLOADTEST_PASS"] = "secret";
+    const creds = getCreds();
+    expect(creds).toEqual({ user: "alice", pass: "secret", connectApiKey: null });
+  });
+
+  it("falls back to legacy SHINYCANNON_* env vars", () => {
     process.env["SHINYCANNON_USER"] = "alice";
     process.env["SHINYCANNON_PASS"] = "secret";
     const creds = getCreds();
     expect(creds).toEqual({ user: "alice", pass: "secret", connectApiKey: null });
   });
 
+  it("SHINYLOADTEST_* takes precedence over SHINYCANNON_*", () => {
+    process.env["SHINYLOADTEST_USER"] = "new-alice";
+    process.env["SHINYCANNON_USER"] = "old-alice";
+    process.env["SHINYLOADTEST_PASS"] = "new-secret";
+    process.env["SHINYCANNON_PASS"] = "old-secret";
+    const creds = getCreds();
+    expect(creds).toEqual({ user: "new-alice", pass: "new-secret", connectApiKey: null });
+  });
+
   it("API key takes precedence over user/pass", () => {
-    process.env["SHINYCANNON_USER"] = "alice";
-    process.env["SHINYCANNON_PASS"] = "secret";
-    process.env["SHINYCANNON_CONNECT_API_KEY"] = "my-key";
+    process.env["SHINYLOADTEST_USER"] = "alice";
+    process.env["SHINYLOADTEST_PASS"] = "secret";
+    process.env["SHINYLOADTEST_CONNECT_API_KEY"] = "my-key";
     const creds = getCreds();
     expect(creds).toEqual({ user: null, pass: null, connectApiKey: "my-key" });
   });
 
+  it("falls back to legacy SHINYCANNON_CONNECT_API_KEY", () => {
+    process.env["SHINYCANNON_CONNECT_API_KEY"] = "legacy-key";
+    const creds = getCreds();
+    expect(creds).toEqual({ user: null, pass: null, connectApiKey: "legacy-key" });
+  });
+
   it("treats empty API key as null", () => {
-    process.env["SHINYCANNON_CONNECT_API_KEY"] = "";
-    process.env["SHINYCANNON_USER"] = "bob";
-    process.env["SHINYCANNON_PASS"] = "pass";
+    process.env["SHINYLOADTEST_CONNECT_API_KEY"] = "";
+    process.env["SHINYLOADTEST_USER"] = "bob";
+    process.env["SHINYLOADTEST_PASS"] = "pass";
     const creds = getCreds();
     expect(creds).toEqual({ user: "bob", pass: "pass", connectApiKey: null });
   });
 
   it("treats empty user as null", () => {
-    process.env["SHINYCANNON_USER"] = "";
+    process.env["SHINYLOADTEST_USER"] = "";
     const creds = getCreds();
     expect(creds.user).toBeNull();
   });

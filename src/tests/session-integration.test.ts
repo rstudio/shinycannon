@@ -343,18 +343,18 @@ describe("Session Integration", { timeout: 30000 }, () => {
     });
   });
 
-  it("OUT-01: output dir has sessions/, recording.log, shinycannon-version.txt", () => {
+  it("OUT-01: output dir has sessions/, recording.log, shinyloadtest-version.txt", () => {
     expect(fs.existsSync(path.join(outputDir, "sessions"))).toBe(true);
     expect(
       fs.statSync(path.join(outputDir, "sessions")).isDirectory(),
     ).toBe(true);
     expect(fs.existsSync(path.join(outputDir, "recording.log"))).toBe(true);
     expect(
-      fs.existsSync(path.join(outputDir, "shinycannon-version.txt")),
+      fs.existsSync(path.join(outputDir, "shinyloadtest-version.txt")),
     ).toBe(true);
     expect(
       fs.readFileSync(
-        path.join(outputDir, "shinycannon-version.txt"),
+        path.join(outputDir, "shinyloadtest-version.txt"),
         "utf-8",
       ),
     ).toBe("0.0.0-test");

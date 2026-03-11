@@ -122,8 +122,8 @@ describe("Auth Integration", { timeout: 30000 }, () => {
       m.includes("doesn't require authentication"),
     );
     expect(warningMsg).toBeDefined();
-    expect(warningMsg).toContain("SHINYCANNON_USER");
-    expect(warningMsg).toContain("SHINYCANNON_PASS");
+    expect(warningMsg).toContain("SHINYLOADTEST_USER");
+    expect(warningMsg).toContain("SHINYLOADTEST_PASS");
 
     // Session should still complete successfully
     const events = readCsvEvents(outputDir);
@@ -155,7 +155,7 @@ describe("Auth Integration", { timeout: 30000 }, () => {
     function validateApiKey(rscRequired: boolean, apiKey: string | null): void {
       if (rscRequired && apiKey === null) {
         throw new Error(
-          "Recording requires an RStudio Connect API key but SHINYCANNON_CONNECT_API_KEY is not set.",
+          "Recording requires a Posit Connect API key but SHINYLOADTEST_CONNECT_API_KEY is not set.",
         );
       }
     }
@@ -163,7 +163,7 @@ describe("Auth Integration", { timeout: 30000 }, () => {
     // No key → should throw
     expect(() =>
       validateApiKey(recording.props.rscApiKeyRequired, null),
-    ).toThrow("SHINYCANNON_CONNECT_API_KEY");
+    ).toThrow("SHINYLOADTEST_CONNECT_API_KEY");
 
     // Key present → should not throw
     expect(() =>

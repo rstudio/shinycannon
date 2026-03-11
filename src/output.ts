@@ -48,7 +48,7 @@ export function createOutputDir(options: OutputDirOptions): void {
 
   fs.mkdirSync(outputDir, { recursive: true });
   fs.mkdirSync(path.join(outputDir, "sessions"), { recursive: true });
-  fs.writeFileSync(path.join(outputDir, "shinycannon-version.txt"), version);
+  fs.writeFileSync(path.join(outputDir, "shinyloadtest-version.txt"), version);
   fs.copyFileSync(recordingPath, path.join(outputDir, "recording.log"));
 }
 

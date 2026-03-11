@@ -25,7 +25,7 @@ async function main(): Promise<void> {
     args.creds.connectApiKey === null
   ) {
     throw new Error(
-      "Recording requires an RStudio Connect API key but SHINYCANNON_CONNECT_API_KEY is not set.",
+      "Recording requires a Posit Connect API key but SHINYLOADTEST_CONNECT_API_KEY is not set.",
     );
   }
 
@@ -34,8 +34,8 @@ async function main(): Promise<void> {
     args.creds.connectApiKey !== null
   ) {
     throw new Error(
-      "SHINYCANNON_CONNECT_API_KEY is set but the recording was not made with an API key. " +
-        "Re-record with an API key or unset SHINYCANNON_CONNECT_API_KEY.",
+      "SHINYLOADTEST_CONNECT_API_KEY is set but the recording was not made with an API key. " +
+        "Re-record with an API key or unset SHINYLOADTEST_CONNECT_API_KEY.",
     );
   }
 
@@ -63,7 +63,7 @@ async function main(): Promise<void> {
   const detectionClient = new HttpClient({
     cookieJar: new CookieJar(),
     headers: args.headers,
-    userAgent: `shinycannon/${VERSION}`,
+    userAgent: `shinyloadtest/${VERSION}`,
   });
 
   let detectedServerType: ServerType | null = null;

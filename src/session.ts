@@ -41,7 +41,7 @@ import { ShinyWebSocket } from "./websocket.js";
 // Constants
 // ---------------------------------------------------------------------------
 
-const USER_AGENT = `shinycannon/${VERSION}`;
+const USER_AGENT = `shinyloadtest/${VERSION}`;
 
 // ---------------------------------------------------------------------------
 // Stats
@@ -185,7 +185,7 @@ async function maybeLogin(
       }
     } else {
       logger.info(
-        "SHINYCANNON_USER and SHINYCANNON_PASS set, but target app doesn't require authentication.",
+        "SHINYLOADTEST_USER and SHINYLOADTEST_PASS set, but target app doesn't require authentication.",
       );
     }
   }

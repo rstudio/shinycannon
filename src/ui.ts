@@ -85,7 +85,7 @@ export class TerminalUI {
     const w = process.stderr.write.bind(process.stderr);
 
     w("\n");
-    w(`  ${bold(cyan("shinycannon"))} ${dim(`v${version}`)}\n`);
+    w(`  ${bold(cyan("shinyloadtest"))} ${dim(`v${version}`)}\n`);
     w("\n");
     w(`  ${dim("Target:")}    ${bold(appUrl)}\n`);
     w(`  ${dim("Workers:")}   ${bold(String(workers))}\n`);

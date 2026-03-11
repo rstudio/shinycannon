@@ -1,4 +1,4 @@
-// Core type definitions for shinycannon TypeScript rewrite.
+// Core type definitions for shinyloadtest.
 // Types only — no implementation logic beyond simple helpers.
 
 // ---------------------------------------------------------------------------

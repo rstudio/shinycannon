@@ -103,14 +103,14 @@ export function parseArgs(argv?: string[]): ParsedArgs {
       styleTitle: (str) => bold(str),
       styleOptionTerm: (str) => cyan(str),
     })
-    .name(bold(cyan("shinycannon")))
-    .description("Load generation tool for Shiny applications.")
+    .name(bold(cyan("shinyloadtest")))
+    .description("Load testing tool for Shiny applications.")
     .version(VERSION);
 
   let result: ParsedArgs | undefined;
 
-  const loadtestCmd = program
-    .command("loadtest")
+  const replayCmd = program
+    .command("replay")
     .configureHelp({
       styleTitle: (str) => bold(str),
       styleArgumentTerm: (str) => colorArgument(str),
@@ -118,12 +118,12 @@ export function parseArgs(argv?: string[]): ParsedArgs {
       styleOptionTerm: (str) => cyan(str),
     })
     .description(
-      "Run a load test against a deployed Shiny application.\n\n" +
+      "Replay a recorded session against a deployed Shiny application.\n\n" +
         "Provided a recording file and the URL of a deployed application,\n" +
-        "shinycannon will play back the recording, simulating one or more\n" +
+        "shinyloadtest will play back the recording, simulating one or more\n" +
         "users interacting with the application over a configurable amount of time.\n\n" +
         dim("Example:") + "\n" +
-        `  ${cyan("$")} shinycannon loadtest recording.log https://rsc.example.com/app --workers 3 --loaded-duration-minutes 10`,
+        `  ${cyan("$")} shinyloadtest replay recording.log https://rsc.example.com/app --workers 3 --loaded-duration-minutes 10`,
     )
     .argument("<recording>", "Path to recording file")
     .argument("[app-url]", "URL of the Shiny application to interact with (defaults to target_url from recording)")
@@ -157,9 +157,10 @@ export function parseArgs(argv?: string[]): ParsedArgs {
     .addHelpText(
       "after",
       `\n${bold("Environment variables:")}\n` +
-        `  ${yellow("SHINYCANNON_USER")}              Username for SSP or Connect auth\n` +
-        `  ${yellow("SHINYCANNON_PASS")}              Password for SSP or Connect auth\n` +
-        `  ${yellow("SHINYCANNON_CONNECT_API_KEY")}   RStudio Connect API key`,
+        `  ${yellow("SHINYLOADTEST_USER")}              Username for SSP or Connect auth\n` +
+        `  ${yellow("SHINYLOADTEST_PASS")}              Password for SSP or Connect auth\n` +
+        `  ${yellow("SHINYLOADTEST_CONNECT_API_KEY")}   Posit Connect API key\n` +
+        `\n${dim("  Legacy SHINYCANNON_* environment variables are also supported.")}`,
     )
     .action((recordingPath: string, appUrlArg: string | undefined, opts: {
       workers: string;
@@ -241,9 +242,9 @@ export function parseArgs(argv?: string[]): ParsedArgs {
     program.help();
   }
 
-  // Show loadtest help when invoked as `shinycannon loadtest` with no further args
-  if (userArgs.length === 1 && userArgs[0] === "loadtest") {
-    loadtestCmd.help();
+  // Show replay help when invoked as `shinyloadtest replay` with no further args
+  if (userArgs.length === 1 && userArgs[0] === "replay") {
+    replayCmd.help();
   }
 
   program.parse(raw);

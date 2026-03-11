@@ -43,7 +43,7 @@ describe("createOutputDir", () => {
     expect(fs.existsSync(path.join(outputDir, "sessions"))).toBe(true);
     expect(
       fs.readFileSync(
-        path.join(outputDir, "shinycannon-version.txt"),
+        path.join(outputDir, "shinyloadtest-version.txt"),
         "utf-8",
       ),
     ).toBe("1.0.0");
@@ -83,7 +83,7 @@ describe("createOutputDir", () => {
     expect(fs.existsSync(path.join(outputDir, "old.txt"))).toBe(false);
     expect(
       fs.readFileSync(
-        path.join(outputDir, "shinycannon-version.txt"),
+        path.join(outputDir, "shinyloadtest-version.txt"),
         "utf-8",
       ),
     ).toBe("2.0.0");

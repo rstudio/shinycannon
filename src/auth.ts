@@ -116,7 +116,10 @@ export function connectApiKeyHeader(apiKey: string): Record<string, string> {
 // ---------------------------------------------------------------------------
 
 export function getCreds(): Creds {
-  const connectApiKey = process.env["SHINYCANNON_CONNECT_API_KEY"] || null;
+  const connectApiKey =
+    process.env["SHINYLOADTEST_CONNECT_API_KEY"] ||
+    process.env["SHINYCANNON_CONNECT_API_KEY"] ||
+    null;
 
   if (connectApiKey !== null) {
     return {
@@ -126,8 +129,14 @@ export function getCreds(): Creds {
     };
   }
 
-  const user = process.env["SHINYCANNON_USER"] || null;
-  const pass = process.env["SHINYCANNON_PASS"] || null;
+  const user =
+    process.env["SHINYLOADTEST_USER"] ||
+    process.env["SHINYCANNON_USER"] ||
+    null;
+  const pass =
+    process.env["SHINYLOADTEST_PASS"] ||
+    process.env["SHINYCANNON_PASS"] ||
+    null;
 
   return { user, pass, connectApiKey: null };
 }

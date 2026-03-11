@@ -1,0 +1,21 @@
+{
+  "name": "shinycannon",
+  "version": "2.0.0-alpha.1",
+  "description": "Legacy CLI for shinyloadtest. Aliases `shinycannon` to `shinyloadtest replay`.",
+  "type": "module",
+  "bin": {
+    "shinycannon": "bin/shinycannon.js"
+  },
+  "dependencies": {
+    "@posit-dev/shinyloadtest": "^2.0.0-alpha.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/posit-dev/shinyloadtest.git",
+    "directory": "packages/shinycannon"
+  }
+}

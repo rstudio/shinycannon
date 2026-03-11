@@ -1,8 +1,10 @@
-# shinycannon Rewrite: Implementation Plan
+# shinyloadtest: Implementation Plan
 
+> **Package:** `@posit-dev/shinyloadtest` (v2.0.0-alpha)
 > **Language:** TypeScript
 > **Runtime:** Node.js 20+
-> **Distribution:** npm (`npx shinycannon`)
+> **Distribution:** npm (`npx @posit-dev/shinyloadtest replay`)
+> **Legacy CLI:** `shinycannon` stub package (`npx shinycannon`)
 > **Spec:** `_dev/00-spec-shinycannon.md`
 > **Research:** `_dev/01-research-typescript.md`, `_dev/02-comparison.md`
 
@@ -10,8 +12,8 @@
 
 ## Decision Record
 
-**We are rewriting shinycannon in TypeScript, targeting Node.js 20+, distributed
-as an npm package.**
+**We are rewriting shinycannon as `@posit-dev/shinyloadtest` in TypeScript,
+targeting Node.js 20+, distributed as an npm package.**
 
 Rationale:
 
@@ -84,18 +86,23 @@ leverage it fully:
 ## Project Structure
 
 ```
-shinycannon/
+shinyloadtest/
   _dev/
     00-spec-shinycannon.md    # Feature spec
     01-research-*.md          # Technology research
     02-comparison.md          # Language comparison
     _plan.md                  # This document
-  package.json
+  package.json                # @posit-dev/shinyloadtest
   tsconfig.json
   tsup.config.ts
   vitest.config.ts
+  packages/
+    shinycannon/              # Stub package: `npx shinycannon` alias
+      package.json
+      bin/shinycannon.js
   src/
-    main.ts               # Entry point: #!/usr/bin/env node, parse CLI, run
+    main.ts               # Entry point: `shinyloadtest` CLI
+    shinycannon.ts         # Entry point: `shinycannon` alias (injects `replay`)
     cli.ts                # CLI argument parsing and validation
     types.ts              # Core type definitions (events, recording, config)
     recording.ts          # Recording file parser
@@ -255,11 +262,15 @@ duration, coordinated shutdown, progress reporting.
   `AbortController` after loaded duration expires. Progress reporting via
   `setInterval` every 5 seconds. Stats tracking (running/done/failed counts).
   Final summary on completion.
-- **`cli.ts`** -- CLI argument parsing with commander. Positional args
-  (recording, app-url), named options (workers, loaded-duration-minutes,
-  start-interval, output-dir, header, etc.), flags (overwrite-output,
-  debug-log), environment variable credentials. Validation: recording file
-  exists, output dir handling, start-interval default calculation.
+- **`cli.ts`** -- CLI argument parsing with commander. Uses a subcommand
+  architecture: root command (`shinyloadtest`) with version/help, and a
+  `replay` subcommand that carries all positional args (recording,
+  app-url), named options (workers, loaded-duration-minutes, start-interval,
+  output-dir, header, etc.), flags (overwrite-output, debug-log), and
+  environment variable credentials. Validation: recording file exists,
+  output dir handling, start-interval default calculation. Bare
+  `shinyloadtest` and `shinyloadtest replay` both show context-appropriate
+  help.
 - **`main.ts`** -- Entry point. Parse CLI, validate inputs, initialize
   logging, detect server type, validate recording compatibility, set up
   output directory, create and run endurance test.
@@ -271,7 +282,7 @@ duration, coordinated shutdown, progress reporting.
 - Verify progress stats are accurate
 - Verify output directory structure is correct
 
-**Milestone:** Full end-to-end: `npx tsx src/main.ts recording.log
+**Milestone:** Full end-to-end: `npx tsx src/main.ts replay recording.log
 https://example.com/app --workers 3 --loaded-duration-minutes 1` produces
 correct output.
 
@@ -293,7 +304,7 @@ Finalize the npm package for distribution.
 - **README.** Installation and usage instructions. Migration guide from
   the Kotlin version.
 
-**Milestone:** `npm publish` succeeds, `npx shinycannon --help` works.
+**Milestone:** `npm publish` succeeds, `npx @posit-dev/shinyloadtest --help` works.
 
 ---
 
@@ -323,6 +334,26 @@ network layer, session/worker/orchestration, Kotlin parity comparison).
 - `fsyncSync` on every CSV row write (item 7)
 
 **Test results:** 171/171 passing, typecheck clean, lint clean, build clean.
+
+---
+
+### Post-Phase: CLI Subcommand Restructuring ✅ COMPLETE
+
+Moved all load-testing functionality behind the `replay` subcommand and
+renamed the package to `@posit-dev/shinyloadtest`.
+
+**Changes:**
+
+- Package renamed from `shinycannon` to `@posit-dev/shinyloadtest` (v2.0.0-alpha)
+- Root `shinyloadtest` command shows top-level help listing subcommands
+- `shinyloadtest replay <recording> [app-url] [options]` runs load tests
+- `shinyloadtest replay` with no args shows replay-specific help
+- `shinycannon` available as both a built-in bin alias (in the main package)
+  and a standalone stub package (`packages/shinycannon/`) for `npx shinycannon`
+- Environment variables renamed to `SHINYLOADTEST_*` with `SHINYCANNON_*` fallback
+- Output version file renamed to `shinyloadtest-version.txt`
+
+**Test results:** 176/176 passing, typecheck clean, build clean.
 
 ---
 
@@ -376,8 +407,9 @@ To keep the scope bounded:
   shinyloadtest (R package). We consume it as-is.
 - **Not changing the output format.** The CSV format is consumed by
   shinyloadtest's analysis functions. Must be byte-compatible.
-- **Not adding new features.** This is a 1:1 behavioral rewrite. New features
-  (if any) come after the rewrite lands.
+- **Not adding new features beyond CLI restructuring.** This is a 1:1
+  behavioral rewrite. The only structural addition is the `replay`
+  subcommand to make room for future subcommands (`record`, `report`).
 - **Not supporting sub-applications.** Same limitation as the original.
 - **Not building a programmatic API.** CLI only, same as the original. (The
   module structure supports this later if desired, but it's not a goal.)

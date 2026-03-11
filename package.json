@@ -1,11 +1,12 @@
 {
-  "name": "shinycannon",
-  "version": "0.0.1",
+  "name": "@posit-dev/shinyloadtest",
+  "version": "2.0.0-alpha.1",
   "description": "Load testing tool for Shiny applications",
   "type": "module",
   "main": "dist/main.js",
   "bin": {
-    "shinycannon": "dist/main.js"
+    "shinyloadtest": "dist/main.js",
+    "shinycannon": "dist/shinycannon.js"
   },
   "scripts": {
     "build": "tsup",
@@ -23,7 +24,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rstudio/shinycannon.git"
+    "url": "https://github.com/posit-dev/shinyloadtest.git"
   },
   "files": [
     "dist/"

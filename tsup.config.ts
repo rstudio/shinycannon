@@ -4,7 +4,7 @@ import { defineConfig } from "tsup";
 const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 
 export default defineConfig({
-  entry: ["src/main.ts"],
+  entry: ["src/main.ts", "src/shinycannon.ts"],
   format: ["esm"],
   target: "node20",
   outDir: "dist",
