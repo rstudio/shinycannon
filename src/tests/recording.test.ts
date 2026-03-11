@@ -1,28 +1,28 @@
-import { describe, it, expect } from "vitest";
-import { readRecordingFromString, recordingDuration } from "../recording.js";
+import { describe, it, expect } from "vitest"
+import { readRecordingFromString, recordingDuration } from "../recording.js"
 
 // Helper to build a minimal valid recording string
 function makeRecording(
   headers: string[],
   events: Record<string, unknown>[],
 ): string {
-  const headerLines = headers.join("\n");
-  const eventLines = events.map((e) => JSON.stringify(e)).join("\n");
-  return `${headerLines}\n${eventLines}`;
+  const headerLines = headers.join("\n")
+  const eventLines = events.map((e) => JSON.stringify(e)).join("\n")
+  return `${headerLines}\n${eventLines}`
 }
 
 const DEFAULT_HEADERS = [
   "# version: 1",
   "# target_url: http://localhost:3838",
   "# target_type: R/Shiny",
-];
+]
 
-const T0 = "2020-01-01T00:00:00.000Z";
-const T1 = "2020-01-01T00:00:01.000Z";
-const T2 = "2020-01-01T00:00:02.000Z";
-const T3 = "2020-01-01T00:00:03.000Z";
-const T4 = "2020-01-01T00:00:04.000Z";
-const T5 = "2020-01-01T00:00:05.000Z";
+const T0 = "2020-01-01T00:00:00.000Z"
+const T1 = "2020-01-01T00:00:01.000Z"
+const T2 = "2020-01-01T00:00:02.000Z"
+const T3 = "2020-01-01T00:00:03.000Z"
+const T4 = "2020-01-01T00:00:04.000Z"
+const T5 = "2020-01-01T00:00:05.000Z"
 
 describe("readRecordingFromString", () => {
   it("parses a valid recording with all event types", () => {
@@ -48,89 +48,89 @@ describe("readRecordingFromString", () => {
         message: '{"uploadUrl":"abc"}',
       },
       { type: "WS_CLOSE", begin: T5 },
-    ];
+    ]
 
     const recording = readRecordingFromString(
       makeRecording(DEFAULT_HEADERS, events),
-    );
+    )
 
-    expect(recording.props.version).toBe(1);
-    expect(recording.props.targetUrl).toBe("http://localhost:3838");
-    expect(recording.props.targetType).toBe("SHN");
-    expect(recording.props.rscApiKeyRequired).toBe(false);
-    expect(recording.events).toHaveLength(11);
+    expect(recording.props.version).toBe(1)
+    expect(recording.props.targetUrl).toBe("http://localhost:3838")
+    expect(recording.props.targetType).toBe("SHN")
+    expect(recording.props.rscApiKeyRequired).toBe(false)
+    expect(recording.events).toHaveLength(11)
 
     // Verify specific event types
-    expect(recording.events[0]!.type).toBe("REQ_HOME");
-    expect(recording.events[4]!.type).toBe("REQ_POST");
-    const post = recording.events[4]!;
+    expect(recording.events[0]!.type).toBe("REQ_HOME")
+    expect(recording.events[4]!.type).toBe("REQ_POST")
+    const post = recording.events[4]!
     if (post.type === "REQ_POST") {
-      expect(post.datafile).toBe("data.csv");
+      expect(post.datafile).toBe("data.csv")
     }
-    expect(recording.events[5]!.type).toBe("WS_OPEN");
-    expect(recording.events[10]!.type).toBe("WS_CLOSE");
+    expect(recording.events[5]!.type).toBe("WS_OPEN")
+    expect(recording.events[10]!.type).toBe("WS_CLOSE")
 
     // Verify begin is parsed to epoch ms
-    expect(recording.events[0]!.begin).toBe(new Date(T0).getTime());
+    expect(recording.events[0]!.begin).toBe(new Date(T0).getTime())
 
     // Verify lineNumber is 1-based (3 header lines + 1st event = line 4)
-    expect(recording.events[0]!.lineNumber).toBe(4);
-  });
+    expect(recording.events[0]!.lineNumber).toBe(4)
+  })
 
   it("upgrades legacy format with only 'target' property", () => {
-    const headers = ["# target: http://legacy-app:3838"];
+    const headers = ["# target: http://legacy-app:3838"]
     const events = [
       { type: "WS_OPEN", begin: T0, url: "/ws" },
       { type: "WS_CLOSE", begin: T1 },
-    ];
+    ]
 
-    const recording = readRecordingFromString(makeRecording(headers, events));
+    const recording = readRecordingFromString(makeRecording(headers, events))
 
-    expect(recording.props.version).toBe(1);
-    expect(recording.props.targetUrl).toBe("http://legacy-app:3838");
-    expect(recording.props.targetType).toBe("UNK");
-  });
+    expect(recording.props.version).toBe(1)
+    expect(recording.props.targetUrl).toBe("http://legacy-app:3838")
+    expect(recording.props.targetType).toBe("UNK")
+  })
 
   it("throws on missing required property", () => {
-    const headers = ["# version: 1", "# target_url: http://localhost:3838"];
-    const events = [{ type: "WS_CLOSE", begin: T0 }];
+    const headers = ["# version: 1", "# target_url: http://localhost:3838"]
+    const events = [{ type: "WS_CLOSE", begin: T0 }]
 
     expect(() =>
       readRecordingFromString(makeRecording(headers, events)),
-    ).toThrow("missing required property: target_type");
-  });
+    ).toThrow("missing required property: target_type")
+  })
 
   it("throws when recording version is too high", () => {
     const headers = [
       "# version: 999",
       "# target_url: http://localhost:3838",
       "# target_type: R/Shiny",
-    ];
-    const events = [{ type: "WS_CLOSE", begin: T0 }];
+    ]
+    const events = [{ type: "WS_CLOSE", begin: T0 }]
 
     expect(() =>
       readRecordingFromString(makeRecording(headers, events)),
-    ).toThrow("newer than supported version");
-  });
+    ).toThrow("newer than supported version")
+  })
 
   it("throws when last event is not WS_CLOSE", () => {
     const events = [
       { type: "WS_OPEN", begin: T0, url: "/ws" },
       { type: "WS_SEND", begin: T1, message: "hello" },
-    ];
+    ]
 
     expect(() =>
       readRecordingFromString(makeRecording(DEFAULT_HEADERS, events)),
-    ).toThrow("must end with WS_CLOSE");
-  });
+    ).toThrow("must end with WS_CLOSE")
+  })
 
   it("throws when there are no events", () => {
-    const content = DEFAULT_HEADERS.join("\n");
+    const content = DEFAULT_HEADERS.join("\n")
 
     expect(() => readRecordingFromString(content)).toThrow(
       "Recording contains no events",
-    );
-  });
+    )
+  })
 
   it("parses rscApiKeyRequired as true", () => {
     const headers = [
@@ -138,62 +138,62 @@ describe("readRecordingFromString", () => {
       "# target_url: https://connect.example.com/app",
       "# target_type: RStudio Server Connect",
       "# rscApiKeyRequired: true",
-    ];
-    const events = [{ type: "WS_CLOSE", begin: T0 }];
+    ]
+    const events = [{ type: "WS_CLOSE", begin: T0 }]
 
-    const recording = readRecordingFromString(makeRecording(headers, events));
-    expect(recording.props.rscApiKeyRequired).toBe(true);
-    expect(recording.props.targetType).toBe("RSC");
-  });
+    const recording = readRecordingFromString(makeRecording(headers, events))
+    expect(recording.props.rscApiKeyRequired).toBe(true)
+    expect(recording.props.targetType).toBe("RSC")
+  })
 
   it("defaults rscApiKeyRequired to false when not present", () => {
-    const events = [{ type: "WS_CLOSE", begin: T0 }];
+    const events = [{ type: "WS_CLOSE", begin: T0 }]
 
     const recording = readRecordingFromString(
       makeRecording(DEFAULT_HEADERS, events),
-    );
-    expect(recording.props.rscApiKeyRequired).toBe(false);
-  });
+    )
+    expect(recording.props.rscApiKeyRequired).toBe(false)
+  })
 
   it("throws on invalid begin timestamp (NaN)", () => {
-    const events = [{ type: "WS_CLOSE", begin: "not-a-date" }];
+    const events = [{ type: "WS_CLOSE", begin: "not-a-date" }]
     expect(() =>
       readRecordingFromString(makeRecording(DEFAULT_HEADERS, events)),
-    ).toThrow("Invalid begin timestamp");
-  });
+    ).toThrow("Invalid begin timestamp")
+  })
 
   it("throws on negative version", () => {
     const headers = [
       "# version: -1",
       "# target_url: http://localhost:3838",
       "# target_type: R/Shiny",
-    ];
-    const events = [{ type: "WS_CLOSE", begin: T0 }];
+    ]
+    const events = [{ type: "WS_CLOSE", begin: T0 }]
     expect(() =>
       readRecordingFromString(makeRecording(headers, events)),
-    ).toThrow("Invalid recording version");
-  });
+    ).toThrow("Invalid recording version")
+  })
 
   it("throws on version 0", () => {
     const headers = [
       "# version: 0",
       "# target_url: http://localhost:3838",
       "# target_type: R/Shiny",
-    ];
-    const events = [{ type: "WS_CLOSE", begin: T0 }];
+    ]
+    const events = [{ type: "WS_CLOSE", begin: T0 }]
     expect(() =>
       readRecordingFromString(makeRecording(headers, events)),
-    ).toThrow("Invalid recording version");
-  });
+    ).toThrow("Invalid recording version")
+  })
 
   it("includes upgrade suggestion in missing property error", () => {
-    const headers = ["# version: 1", "# target_url: http://localhost:3838"];
-    const events = [{ type: "WS_CLOSE", begin: T0 }];
+    const headers = ["# version: 1", "# target_url: http://localhost:3838"]
+    const events = [{ type: "WS_CLOSE", begin: T0 }]
     expect(() =>
       readRecordingFromString(makeRecording(headers, events)),
-    ).toThrow("you may need to upgrade shinyloadtest");
-  });
-});
+    ).toThrow("you may need to upgrade shinyloadtest")
+  })
+})
 
 describe("recordingDuration", () => {
   it("returns the difference between first and last event begin times", () => {
@@ -201,12 +201,12 @@ describe("recordingDuration", () => {
       { type: "WS_OPEN", begin: T0, url: "/ws" },
       { type: "WS_SEND", begin: T3, message: "hello" },
       { type: "WS_CLOSE", begin: T5 },
-    ];
+    ]
 
     const recording = readRecordingFromString(
       makeRecording(DEFAULT_HEADERS, events),
-    );
+    )
     // T5 - T0 = 5000ms
-    expect(recordingDuration(recording)).toBe(5000);
-  });
-});
+    expect(recordingDuration(recording)).toBe(5000)
+  })
+})

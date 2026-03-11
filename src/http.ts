@@ -4,16 +4,16 @@
  * session playback.
  */
 
-import { CookieJar } from "tough-cookie";
+import { CookieJar } from "tough-cookie"
 
 // ---------------------------------------------------------------------------
 // HttpResponse
 // ---------------------------------------------------------------------------
 
 export interface HttpResponse {
-  readonly statusCode: number;
-  readonly headers: Record<string, string>;
-  readonly body: string;
+  readonly statusCode: number
+  readonly headers: Record<string, string>
+  readonly body: string
 }
 
 // ---------------------------------------------------------------------------
@@ -25,10 +25,10 @@ export interface HttpResponse {
  * 200 and 304 are treated as interchangeable.
  */
 export function statusEquals(expected: number, actual: number): boolean {
-  if (expected === actual) return true;
-  if (expected === 200 && actual === 304) return true;
-  if (expected === 304 && actual === 200) return true;
-  return false;
+  if (expected === actual) return true
+  if (expected === 200 && actual === 304) return true
+  if (expected === 304 && actual === 200) return true
+  return false
 }
 
 /**
@@ -41,12 +41,12 @@ export function validateStatus(
   url: string,
   body: string,
 ): void {
-  if (statusEquals(expected, actual)) return;
+  if (statusEquals(expected, actual)) return
 
-  const preview = body.length > 200 ? body.substring(0, 200) + "..." : body;
+  const preview = body.length > 200 ? body.substring(0, 200) + "..." : body
   throw new Error(
     `Status ${actual} received, expected ${expected}, URL: ${url}\n${preview}`,
-  );
+  )
 }
 
 /**
@@ -54,16 +54,16 @@ export function validateStatus(
  * Looks for `<base href="_w_<id>/">` in the HTML.
  */
 export function extractWorkerId(html: string): string | null {
-  const re = /<base\s+href="_w_([0-9a-z]+)\/">/;
-  const match = re.exec(html);
-  return match?.[1] ?? null;
+  const re = /<base\s+href="_w_([0-9a-z]+)\/">/
+  const match = re.exec(html)
+  return match?.[1] ?? null
 }
 
 /**
  * Extract a token from a response body. The body IS the token (trimmed).
  */
 export function extractToken(body: string): string {
-  return body.trim();
+  return body.trim()
 }
 
 // ---------------------------------------------------------------------------
@@ -78,7 +78,7 @@ export async function getCookieString(
   jar: CookieJar,
   url: string,
 ): Promise<string> {
-  return jar.getCookieString(url);
+  return jar.getCookieString(url)
 }
 
 // ---------------------------------------------------------------------------
@@ -86,26 +86,26 @@ export async function getCookieString(
 // ---------------------------------------------------------------------------
 
 export class HttpClient {
-  readonly cookieJar: CookieJar;
-  private customHeaders: Record<string, string>;
-  private readonly userAgent: string;
+  readonly cookieJar: CookieJar
+  private customHeaders: Record<string, string>
+  private readonly userAgent: string
 
   constructor(options: {
-    cookieJar: CookieJar;
-    headers: Record<string, string>;
-    userAgent: string;
+    cookieJar: CookieJar
+    headers: Record<string, string>
+    userAgent: string
   }) {
-    this.cookieJar = options.cookieJar;
-    this.customHeaders = options.headers;
-    this.userAgent = options.userAgent;
+    this.cookieJar = options.cookieJar
+    this.customHeaders = options.headers
+    this.userAgent = options.userAgent
   }
 
   setHeaders(headers: Record<string, string>): void {
-    this.customHeaders = headers;
+    this.customHeaders = headers
   }
 
   async get(url: string, signal?: AbortSignal): Promise<HttpResponse> {
-    return this.request(url, { method: "GET", signal });
+    return this.request(url, { method: "GET", signal })
   }
 
   async post(
@@ -114,16 +114,16 @@ export class HttpClient {
     contentType?: string,
     signal?: AbortSignal,
   ): Promise<HttpResponse> {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = {}
     if (contentType) {
-      headers["content-type"] = contentType;
+      headers["content-type"] = contentType
     }
     return this.request(url, {
       method: "POST",
       headers,
       body: body ?? null,
       signal,
-    });
+    })
   }
 
   async postForm(
@@ -131,8 +131,8 @@ export class HttpClient {
     fields: Record<string, string>,
     signal?: AbortSignal,
   ): Promise<HttpResponse> {
-    const encoded = new URLSearchParams(fields).toString();
-    return this.post(url, encoded, "application/x-www-form-urlencoded", signal);
+    const encoded = new URLSearchParams(fields).toString()
+    return this.post(url, encoded, "application/x-www-form-urlencoded", signal)
   }
 
   // -------------------------------------------------------------------------
@@ -142,22 +142,22 @@ export class HttpClient {
   private async request(
     url: string,
     init: {
-      method: string;
-      headers?: Record<string, string>;
-      body?: string | Buffer | null;
-      signal?: AbortSignal;
+      method: string
+      headers?: Record<string, string>
+      body?: string | Buffer | null
+      signal?: AbortSignal
     },
   ): Promise<HttpResponse> {
-    const cookieString = await this.cookieJar.getCookieString(url);
+    const cookieString = await this.cookieJar.getCookieString(url)
 
     const headers: Record<string, string> = {
       "user-agent": this.userAgent,
       ...this.customHeaders,
       ...init.headers,
-    };
+    }
 
     if (cookieString) {
-      headers["cookie"] = cookieString;
+      headers["cookie"] = cookieString
     }
 
     const response = await fetch(url, {
@@ -166,26 +166,26 @@ export class HttpClient {
       body: init.body,
       redirect: "follow",
       signal: init.signal,
-    });
+    })
 
     // Store cookies from response
-    const setCookieHeaders = response.headers.getSetCookie();
+    const setCookieHeaders = response.headers.getSetCookie()
     for (const setCookie of setCookieHeaders) {
-      await this.cookieJar.setCookie(setCookie, response.url);
+      await this.cookieJar.setCookie(setCookie, response.url)
     }
 
     // Build lowercased headers map
-    const responseHeaders: Record<string, string> = {};
+    const responseHeaders: Record<string, string> = {}
     response.headers.forEach((value, key) => {
-      responseHeaders[key.toLowerCase()] = value;
-    });
+      responseHeaders[key.toLowerCase()] = value
+    })
 
-    const body = await response.text();
+    const body = await response.text()
 
     return {
       statusCode: response.status,
       headers: responseHeaders,
       body,
-    };
+    }
   }
 }

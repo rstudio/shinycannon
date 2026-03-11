@@ -4,8 +4,8 @@
  * and Connect API key authentication.
  */
 
-import { type HttpClient } from "./http.js";
-import { type Creds, ServerType } from "./types.js";
+import { type HttpClient } from "./http.js"
+import { type Creds, ServerType } from "./types.js"
 
 // ---------------------------------------------------------------------------
 // Login URL
@@ -15,11 +15,11 @@ export function loginUrlFor(appUrl: string, serverType: ServerType): string {
   if (serverType !== ServerType.RSC && serverType !== ServerType.SSP) {
     throw new Error(
       `Don't know how to construct login URL for server type: ${serverType}`,
-    );
+    )
   }
-  const url = new URL(appUrl);
-  url.pathname = url.pathname.replace(/\/?$/, "/__login__");
-  return url.toString();
+  const url = new URL(appUrl)
+  url.pathname = url.pathname.replace(/\/?$/, "/__login__")
+  return url.toString()
 }
 
 // ---------------------------------------------------------------------------
@@ -27,22 +27,22 @@ export function loginUrlFor(appUrl: string, serverType: ServerType): string {
 // ---------------------------------------------------------------------------
 
 export function extractHiddenInputs(html: string): Record<string, string> {
-  const result: Record<string, string> = {};
-  const inputRegex = /<input[^>]+type=["']hidden["'][^>]*>/gi;
-  const nameRegex = /name=["']([^"']*)["']/i;
-  const valueRegex = /value=["']([^"']*)["']/i;
+  const result: Record<string, string> = {}
+  const inputRegex = /<input[^>]+type=["']hidden["'][^>]*>/gi
+  const nameRegex = /name=["']([^"']*)["']/i
+  const valueRegex = /value=["']([^"']*)["']/i
 
-  let match: RegExpExecArray | null;
+  let match: RegExpExecArray | null
   while ((match = inputRegex.exec(html)) !== null) {
-    const tag = match[0]!;
-    const nameMatch = nameRegex.exec(tag);
-    const valueMatch = valueRegex.exec(tag);
+    const tag = match[0]!
+    const nameMatch = nameRegex.exec(tag)
+    const valueMatch = valueRegex.exec(tag)
     if (nameMatch?.[1] !== undefined) {
-      result[nameMatch[1]] = valueMatch?.[1] ?? "";
+      result[nameMatch[1]] = valueMatch?.[1] ?? ""
     }
   }
 
-  return result;
+  return result
 }
 
 // ---------------------------------------------------------------------------
@@ -53,8 +53,8 @@ export async function isProtected(
   httpClient: HttpClient,
   appUrl: string,
 ): Promise<boolean> {
-  const resp = await httpClient.get(appUrl);
-  return resp.statusCode === 403 || resp.statusCode === 404;
+  const resp = await httpClient.get(appUrl)
+  return resp.statusCode === 403 || resp.statusCode === 404
 }
 
 // ---------------------------------------------------------------------------
@@ -67,12 +67,12 @@ export async function loginRSC(
   username: string,
   password: string,
 ): Promise<void> {
-  const body = JSON.stringify({ username, password });
-  const resp = await httpClient.post(loginUrl, body, "application/json");
+  const body = JSON.stringify({ username, password })
+  const resp = await httpClient.post(loginUrl, body, "application/json")
   if (resp.statusCode !== 200 && resp.statusCode !== 302) {
     throw new Error(
       `RSC login failed with status ${resp.statusCode}: ${resp.body}`,
-    );
+    )
   }
 }
 
@@ -87,12 +87,12 @@ export async function loginSSP(
     ...hiddenInputs,
     username,
     password,
-  };
-  const resp = await httpClient.postForm(loginUrl, fields);
+  }
+  const resp = await httpClient.postForm(loginUrl, fields)
   if (resp.statusCode !== 200 && resp.statusCode !== 302) {
     throw new Error(
       `SSP login failed with status ${resp.statusCode}: ${resp.body}`,
-    );
+    )
   }
 }
 
@@ -104,11 +104,11 @@ export async function getConnectCookies(
   httpClient: HttpClient,
   appUrl: string,
 ): Promise<void> {
-  await httpClient.get(appUrl);
+  await httpClient.get(appUrl)
 }
 
 export function connectApiKeyHeader(apiKey: string): Record<string, string> {
-  return { Authorization: `Key ${apiKey}` };
+  return { Authorization: `Key ${apiKey}` }
 }
 
 // ---------------------------------------------------------------------------
@@ -119,24 +119,20 @@ export function getCreds(): Creds {
   const connectApiKey =
     process.env["SHINYLOADTEST_CONNECT_API_KEY"] ||
     process.env["SHINYCANNON_CONNECT_API_KEY"] ||
-    null;
+    null
 
   if (connectApiKey !== null) {
     return {
       user: null,
       pass: null,
       connectApiKey,
-    };
+    }
   }
 
   const user =
-    process.env["SHINYLOADTEST_USER"] ||
-    process.env["SHINYCANNON_USER"] ||
-    null;
+    process.env["SHINYLOADTEST_USER"] || process.env["SHINYCANNON_USER"] || null
   const pass =
-    process.env["SHINYLOADTEST_PASS"] ||
-    process.env["SHINYCANNON_PASS"] ||
-    null;
+    process.env["SHINYLOADTEST_PASS"] || process.env["SHINYCANNON_PASS"] || null
 
-  return { user, pass, connectApiKey: null };
+  return { user, pass, connectApiKey: null }
 }

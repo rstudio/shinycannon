@@ -4,30 +4,30 @@
  * staggered start, loaded duration control, and progress reporting.
  */
 
-import type { Logger } from "./logger.js";
-import { Stats, runSession } from "./session.js";
-import type { SessionConfig } from "./session.js";
-import type { Recording, Creds } from "./types.js";
-import type { TerminalUI } from "./ui.js";
+import type { Logger } from "./logger.js"
+import { Stats, runSession } from "./session.js"
+import type { SessionConfig } from "./session.js"
+import type { Recording, Creds } from "./types.js"
+import type { TerminalUI } from "./ui.js"
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface EnduranceTestConfig {
-  httpUrl: string;
-  recording: Recording;
-  recordingPath: string;
-  headers: Record<string, string>;
-  creds: Creds;
-  numWorkers: number;
-  warmupInterval: number;
-  loadedDurationMinutes: number;
-  outputDir: string;
-  logger: Logger;
-  argsString: string;
-  argsJson: string;
-  ui?: TerminalUI;
+  httpUrl: string
+  recording: Recording
+  recordingPath: string
+  headers: Record<string, string>
+  creds: Creds
+  numWorkers: number
+  warmupInterval: number
+  loadedDurationMinutes: number
+  outputDir: string
+  logger: Logger
+  argsString: string
+  argsJson: string
+  ui?: TerminalUI
 }
 
 // ---------------------------------------------------------------------------
@@ -35,7 +35,7 @@ export interface EnduranceTestConfig {
 // ---------------------------------------------------------------------------
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 // ---------------------------------------------------------------------------
@@ -59,53 +59,53 @@ export async function runEnduranceTest(
     argsString,
     argsJson,
     ui,
-  } = config;
+  } = config
 
-  const stats = new Stats();
+  const stats = new Stats()
 
   // Session counter (safe in single-threaded Node.js)
-  let sessionCounter = 0;
+  let sessionCounter = 0
   function nextSessionId(): number {
-    return sessionCounter++;
+    return sessionCounter++
   }
 
   // Progress reporting: log stats every 5 seconds (only when no UI)
   const progressInterval = ui
     ? null
     : setInterval(() => {
-        logger.info(stats.toString());
-      }, 5000);
+        logger.info(stats.toString())
+      }, 5000)
 
-  ui?.startWarmup();
+  ui?.startWarmup()
 
   // Shared flag to signal workers to stop after loaded duration
-  let keepWorking = true;
-  const abortController = new AbortController();
+  let keepWorking = true
+  const abortController = new AbortController()
 
   // Per-worker warmup resolve functions
-  const warmupPromises: Promise<void>[] = [];
-  const warmupResolvers: Array<() => void> = [];
+  const warmupPromises: Promise<void>[] = []
+  const warmupResolvers: Array<() => void> = []
 
   for (let i = 0; i < numWorkers; i++) {
-    let resolve!: () => void;
+    let resolve!: () => void
     const promise = new Promise<void>((r) => {
-      resolve = r;
-    });
-    warmupPromises.push(promise);
-    warmupResolvers.push(resolve);
+      resolve = r
+    })
+    warmupPromises.push(promise)
+    warmupResolvers.push(resolve)
   }
 
   // Worker function
   async function workerFn(workerId: number): Promise<void> {
     const workerLogger = logger.child(
       `thread${String(workerId + 1).padStart(2, "0")}`,
-    );
+    )
 
     // Stagger delay
-    await sleep(workerId * warmupInterval);
-    workerLogger.info("Warming up");
+    await sleep(workerId * warmupInterval)
+    workerLogger.info("Warming up")
 
-    let iteration = 0;
+    let iteration = 0
 
     // Build session config (shared fields)
     function buildSessionConfig(): SessionConfig {
@@ -123,58 +123,60 @@ export async function runEnduranceTest(
         argsString,
         argsJson,
         signal: abortController.signal,
-      };
+      }
     }
 
     // First session (warmup)
     try {
-      await runSession(buildSessionConfig(), stats);
+      await runSession(buildSessionConfig(), stats)
     } finally {
-      warmupResolvers[workerId]!();
-      ui?.workerReady();
+      warmupResolvers[workerId]!()
+      ui?.workerReady()
     }
 
     // Subsequent sessions
     while (keepWorking) {
-      workerLogger.info("Running again");
-      await runSession(buildSessionConfig(), stats);
+      workerLogger.info("Running again")
+      await runSession(buildSessionConfig(), stats)
     }
 
-    workerLogger.info("Stopped");
+    workerLogger.info("Stopped")
   }
 
   // Launch all workers concurrently
-  const workerPromises: Promise<void>[] = [];
+  const workerPromises: Promise<void>[] = []
   for (let i = 0; i < numWorkers; i++) {
-    workerPromises.push(workerFn(i));
+    workerPromises.push(workerFn(i))
   }
 
   try {
     // Wait for all workers to complete their first session (warmup phase)
-    logger.info("Waiting for warmup to complete");
-    await Promise.all(warmupPromises);
+    logger.info("Waiting for warmup to complete")
+    await Promise.all(warmupPromises)
 
     // Maintain loaded duration
-    logger.info(`Maintaining for ${loadedDurationMinutes} minutes`);
-    ui?.startLoaded(() => stats.getCounts());
-    await sleep(loadedDurationMinutes * 60000);
+    logger.info(`Maintaining for ${loadedDurationMinutes} minutes`)
+    ui?.startLoaded(() => stats.getCounts())
+    await sleep(loadedDurationMinutes * 60000)
 
     // Signal workers to stop
-    logger.info("Stopped maintaining, waiting for workers to stop");
-    ui?.startShutdown();
-    keepWorking = false;
-    abortController.abort();
+    logger.info("Stopped maintaining, waiting for workers to stop")
+    ui?.startShutdown()
+    keepWorking = false
+    abortController.abort()
 
     // Wait for all workers to finish their current sessions
-    await Promise.all(workerPromises);
+    await Promise.all(workerPromises)
 
     // Final summary
-    const counts = stats.getCounts();
-    logger.info(`Complete. Done: ${counts.done}, Failed: ${counts.failed}, Canceled: ${counts.canceled}`);
-    ui?.finish(counts);
+    const counts = stats.getCounts()
+    logger.info(
+      `Complete. Done: ${counts.done}, Failed: ${counts.failed}, Canceled: ${counts.canceled}`,
+    )
+    ui?.finish(counts)
   } finally {
     if (progressInterval !== null) {
-      clearInterval(progressInterval);
+      clearInterval(progressInterval)
     }
   }
 }
