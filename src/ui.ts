@@ -28,6 +28,7 @@ export interface StatsCounts {
   running: number;
   done: number;
   failed: number;
+  canceled: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +137,9 @@ export class TerminalUI {
     w(`  ${dim("Sessions:")}  ${bold(green(String(stats.done)))} completed`);
     if (stats.failed > 0) {
       w(`, ${bold(red(String(stats.failed)))} failed`);
+    }
+    if (stats.canceled > 0) {
+      w(`, ${dim(String(stats.canceled))} canceled`);
     }
     w("\n");
     w(`  ${dim("Duration:")}  ${bold(formatDuration(totalDuration))}\n`);

@@ -373,6 +373,8 @@ describe("error handling", { timeout: 30_000 }, () => {
       expect(events).toContain("PLAYBACK_CANCEL");
       expect(events).not.toContain("PLAYBACK_FAIL");
       expect(stats.getCounts().failed).toBe(0);
+      expect(stats.getCounts().done).toBe(0);
+      expect(stats.getCounts().canceled).toBe(1);
     } finally {
       await mock.stop();
     }

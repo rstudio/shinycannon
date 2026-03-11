@@ -170,7 +170,7 @@ export async function runEnduranceTest(
 
     // Final summary
     const counts = stats.getCounts();
-    logger.info(`Complete. Failed: ${counts.failed}, Done: ${counts.done}`);
+    logger.info(`Complete. Done: ${counts.done}, Failed: ${counts.failed}, Canceled: ${counts.canceled}`);
     ui?.finish(counts);
   } finally {
     if (progressInterval !== null) {

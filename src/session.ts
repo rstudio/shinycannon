@@ -51,8 +51,9 @@ export class Stats {
   private running = 0;
   private done = 0;
   private failed = 0;
+  private canceled = 0;
 
-  transition(t: "running" | "done" | "failed"): void {
+  transition(t: "running" | "done" | "failed" | "canceled"): void {
     switch (t) {
       case "running":
         this.running++;
@@ -65,14 +66,19 @@ export class Stats {
         this.failed++;
         this.running--;
         break;
+      case "canceled":
+        this.canceled++;
+        this.running--;
+        break;
     }
   }
 
-  getCounts(): { running: number; done: number; failed: number } {
+  getCounts(): { running: number; done: number; failed: number; canceled: number } {
     return {
       running: this.running,
       done: this.done,
       failed: this.failed,
+      canceled: this.canceled,
     };
   }
 
@@ -82,7 +88,7 @@ export class Stats {
   }
 
   toString(): string {
-    return `Running: ${this.running}, Failed: ${this.failed}, Done: ${this.done}`;
+    return `Running: ${this.running}, Failed: ${this.failed}, Done: ${this.done}, Canceled: ${this.canceled}`;
   }
 }
 
@@ -735,7 +741,7 @@ export async function runSession(
     if (aborted) {
       // Graceful shutdown — don't count as failure
       if (started) {
-        stats.transition("done");
+        stats.transition("canceled");
       }
       writer.writeCsv(
         sessionId,
