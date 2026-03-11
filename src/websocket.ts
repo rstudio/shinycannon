@@ -60,15 +60,22 @@ export class AsyncQueue<T> {
         return;
       }
 
+      const waiter: Waiter<T> = { resolve, timer: null! };
+
+      const cleanup = () => {
+        signal?.removeEventListener("abort", onAbort);
+      };
+
       const timer = setTimeout(() => {
-        const idx = this.waiters.findIndex((w) => w.resolve === resolve);
+        const idx = this.waiters.indexOf(waiter);
         if (idx !== -1) {
           this.waiters.splice(idx, 1);
         }
+        cleanup();
         resolve(null);
       }, timeoutMs);
 
-      const waiter: Waiter<T> = { resolve, timer };
+      waiter.timer = timer;
 
       const onAbort = () => {
         clearTimeout(timer);
@@ -83,7 +90,7 @@ export class AsyncQueue<T> {
 
       const originalResolve = resolve;
       waiter.resolve = (value) => {
-        signal?.removeEventListener("abort", onAbort);
+        cleanup();
         originalResolve(value);
       };
 
