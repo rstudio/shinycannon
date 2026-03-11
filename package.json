@@ -16,8 +16,12 @@
     "lint": "eslint src/",
     "format": "prettier --write src/",
     "typecheck": "tsc --noEmit",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "pre-push": "npm run format && npm run lint && npm run typecheck"
   },
+  "pre-push": [
+    "pre-push"
+  ],
   "engines": {
     "node": ">=20"
   },
@@ -43,6 +47,7 @@
     "@typescript-eslint/eslint-plugin": "^8.27.0",
     "@typescript-eslint/parser": "^8.27.0",
     "eslint": "^9.21.0",
+    "pre-push": "^0.1.4",
     "prettier": "^3.5.3",
     "tsup": "^8.4.0",
     "tsx": "^4.19.3",
