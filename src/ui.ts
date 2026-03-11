@@ -23,6 +23,7 @@ export interface StatsCounts {
   done: number
   failed: number
   canceled: number
+  events: number
 }
 
 // ---------------------------------------------------------------------------
@@ -42,6 +43,16 @@ function progressBar(fraction: number, width = 30): string {
   const filled = Math.round(clamped * width)
   const empty = width - filled
   return cyan("\u2588".repeat(filled)) + dim("\u2591".repeat(empty))
+}
+
+function formatNumber(n: number): string {
+  return n.toLocaleString("en-US")
+}
+
+function formatRate(rate: number): string {
+  if (rate >= 100) return rate.toFixed(0)
+  if (rate >= 10) return rate.toFixed(1)
+  return rate.toFixed(2)
 }
 
 function statsLine(stats: StatsCounts): string {
@@ -162,17 +173,33 @@ export class TerminalUI {
       done: 0,
       failed: 0,
       canceled: 0,
+      events: 0,
     }
     const elapsed = Date.now() - this.loadedStartTime
     const remaining = Math.max(0, this.loadedDurationMs - elapsed)
     const fraction = Math.min(1, elapsed / this.loadedDurationMs)
     const pct = Math.round(fraction * 100)
 
-    return [
+    const elapsedSec = elapsed / 1000
+    const rate = elapsedSec > 0 ? stats.events / elapsedSec : 0
+    const eventsLine = `  ${dim("Events:")} ${bold(formatNumber(stats.events))} ${dim(`(${formatRate(rate)}/s)`)}`
+
+    const lines = [
       `${bold("Loaded")}  ${bold(formatDuration(remaining))} ${dim("remaining")}`,
       `  ${progressBar(fraction)}  ${bold(String(pct))}${dim("%")}`,
       `  ${statsLine(stats)}`,
-    ].join("\n")
+      eventsLine,
+    ]
+
+    if (this.config.workers > 1) {
+      const perWorker = stats.events / this.config.workers
+      const perWorkerRate = rate / this.config.workers
+      lines.push(
+        `  ${dim("Events/worker:")} ${bold(formatNumber(Math.round(perWorker)))} ${dim(`avg (${formatRate(perWorkerRate)}/s avg)`)}`,
+      )
+    }
+
+    return lines.join("\n")
   }
 
   cleanup(): void {

@@ -53,6 +53,7 @@ export class Stats {
   private done = 0
   private failed = 0
   private canceled = 0
+  private events = 0
 
   transition(t: "running" | "done" | "failed" | "canceled"): void {
     switch (t) {
@@ -74,17 +75,23 @@ export class Stats {
     }
   }
 
+  recordEvent(): void {
+    this.events++
+  }
+
   getCounts(): {
     running: number
     done: number
     failed: number
     canceled: number
+    events: number
   } {
     return {
       running: this.running,
       done: this.done,
       failed: this.failed,
       canceled: this.canceled,
+      events: this.events,
     }
   }
 
@@ -94,7 +101,7 @@ export class Stats {
   }
 
   toString(): string {
-    return `Running: ${this.running}, Failed: ${this.failed}, Done: ${this.done}, Canceled: ${this.canceled}`
+    return `Running: ${this.running}, Failed: ${this.failed}, Done: ${this.done}, Canceled: ${this.canceled}, Events: ${this.events}`
   }
 }
 
@@ -726,6 +733,7 @@ export async function runSession(
       )
 
       await handleEvent(event, state)
+      stats.recordEvent()
 
       writer.writeCsv(
         sessionId,
