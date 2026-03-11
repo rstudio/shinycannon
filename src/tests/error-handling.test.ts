@@ -47,7 +47,7 @@ async function runSessionAndReadCsv(
       fs.readFileSync(recordingPath, "utf-8"),
     )
     const stats = new Stats()
-    const logger = createLogger({ name: "test", consoleLevel: LogLevel.ERROR })
+    const logger = createLogger({ name: "test", consoleLevel: LogLevel.SILENT })
 
     await runSession(
       {
@@ -128,7 +128,7 @@ describe("error handling", { timeout: 30_000 }, () => {
 
     const recording = readRecordingFromString(recordingContent)
     const stats = new Stats()
-    const logger = createLogger({ name: "test", consoleLevel: LogLevel.ERROR })
+    const logger = createLogger({ name: "test", consoleLevel: LogLevel.SILENT })
 
     await runSession(
       {
@@ -430,7 +430,7 @@ describe("error handling", { timeout: 30_000 }, () => {
       const stats = new Stats()
       const logger = createLogger({
         name: "test",
-        consoleLevel: LogLevel.ERROR,
+        consoleLevel: LogLevel.SILENT,
       })
 
       const abortController = new AbortController()

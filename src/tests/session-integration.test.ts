@@ -46,7 +46,7 @@ async function runTestSession(
     fs.readFileSync(recordingPath, "utf-8"),
   )
   const stats = new Stats()
-  const logger = createLogger({ name: "test", consoleLevel: LogLevel.ERROR })
+  const logger = createLogger({ name: "test", consoleLevel: LogLevel.SILENT })
 
   const config: SessionConfig = {
     sessionId: id,
@@ -212,7 +212,7 @@ describe("Session Integration", { timeout: 30000 }, () => {
       const stats = new Stats()
       const logger = createLogger({
         name: "test",
-        consoleLevel: LogLevel.ERROR,
+        consoleLevel: LogLevel.SILENT,
       })
 
       await runSession(
@@ -276,7 +276,7 @@ describe("Session Integration", { timeout: 30000 }, () => {
       const stats = new Stats()
       const logger = createLogger({
         name: "test",
-        consoleLevel: LogLevel.ERROR,
+        consoleLevel: LogLevel.SILENT,
       })
 
       await runSession(

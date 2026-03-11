@@ -6,6 +6,7 @@ export enum LogLevel {
   INFO = 1,
   WARN = 2,
   ERROR = 3,
+  SILENT = 4,
 }
 
 const LEVEL_LABELS: Record<LogLevel, string> = {
