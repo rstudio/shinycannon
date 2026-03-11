@@ -45,11 +45,13 @@ function progressBar(fraction: number, width = 30): string {
   return cyan("\u2588".repeat(filled)) + dim("\u2591".repeat(empty))
 }
 
-function formatNumber(n: number): string {
+/** @internal Exported for testing. */
+export function formatNumber(n: number): string {
   return n.toLocaleString("en-US")
 }
 
-function formatRate(rate: number): string {
+/** @internal Exported for testing. */
+export function formatRate(rate: number): string {
   if (rate >= 100) return rate.toFixed(0)
   if (rate >= 10) return rate.toFixed(1)
   return rate.toFixed(2)
