@@ -151,7 +151,7 @@ export class TerminalUI {
   }
 
   private loadedText(): string {
-    const stats = this.getStats?.() ?? { running: 0, done: 0, failed: 0 };
+    const stats = this.getStats?.() ?? { running: 0, done: 0, failed: 0, canceled: 0 };
     const elapsed = Date.now() - this.loadedStartTime;
     const remaining = Math.max(0, this.loadedDurationMs - elapsed);
     const fraction = Math.min(1, elapsed / this.loadedDurationMs);
