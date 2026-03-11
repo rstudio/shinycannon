@@ -1,14 +1,14 @@
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
-import { describe, it, expect, beforeAll, afterAll } from "vitest"
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest"
 import {
   parseHeader,
   serializeArgs,
   parseArgs,
   type ParsedArgs,
 } from "../cli.js"
-import { parseLogLevel, LogLevel } from "../logger.js"
+import { createLogger, parseLogLevel, LogLevel } from "../logger.js"
 import { readRecordingFromString, recordingDuration } from "../recording.js"
 
 // ---------------------------------------------------------------------------
@@ -125,6 +125,22 @@ describe("parseLogLevel", () => {
 
   it("throws on an invalid level", () => {
     expect(() => parseLogLevel("INVALID")).toThrow("Unknown log level")
+  })
+})
+
+describe("LogLevel.SILENT", () => {
+  it("suppresses all console output", () => {
+    const logger = createLogger({ name: "test", consoleLevel: LogLevel.SILENT })
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      logger.debug("d")
+      logger.info("i")
+      logger.warn("w")
+      logger.error("e")
+      expect(spy).not.toHaveBeenCalled()
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
 

@@ -14,6 +14,7 @@ const LEVEL_LABELS: Record<LogLevel, string> = {
   [LogLevel.INFO]: "INFO ",
   [LogLevel.WARN]: "WARN ",
   [LogLevel.ERROR]: "ERROR",
+  [LogLevel.SILENT]: "",
 }
 
 export function parseLogLevel(s: string): LogLevel {
