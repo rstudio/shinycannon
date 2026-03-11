@@ -730,23 +730,42 @@ export async function runSession(
     );
   } catch (err: unknown) {
     const error = err instanceof Error ? err : new Error(String(err));
-    if (started) {
-      stats.transition("failed");
+    const aborted = signal?.aborted === true &&
+      (error.name === "AbortError" || signal.reason === err);
+    if (aborted) {
+      // Graceful shutdown — don't count as failure
+      if (started) {
+        stats.transition("done");
+      }
+      writer.writeCsv(
+        sessionId,
+        workerId,
+        iterationId,
+        "PLAYBACK_CANCEL",
+        nowMs(),
+        0,
+        "",
+      );
+      logger.info("Playback cancelled (shutdown)");
     } else {
-      // Failed before entering "running" state — record failure without
-      // decrementing the running counter.
-      stats.recordFailure();
+      if (started) {
+        stats.transition("failed");
+      } else {
+        // Failed before entering "running" state — record failure without
+        // decrementing the running counter.
+        stats.recordFailure();
+      }
+      writer.writeCsv(
+        sessionId,
+        workerId,
+        iterationId,
+        "PLAYBACK_FAIL",
+        nowMs(),
+        0,
+        "",
+      );
+      logger.error(`Playback failed: ${error.message}`, error);
     }
-    writer.writeCsv(
-      sessionId,
-      workerId,
-      iterationId,
-      "PLAYBACK_FAIL",
-      nowMs(),
-      0,
-      "",
-    );
-    logger.error(`Playback failed: ${error.message}`, error);
   } finally {
     if (state.webSocket !== null) {
       try { state.webSocket.close(); } catch { /* ignore close errors */ }

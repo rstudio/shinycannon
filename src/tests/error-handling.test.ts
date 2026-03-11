@@ -310,4 +310,71 @@ describe("error handling", { timeout: 30_000 }, () => {
       await mock.stop();
     }
   });
+
+  it("abort signal cancels session without incrementing failed count", async () => {
+    const mock = new MockShinyServer();
+    await mock.start();
+    try {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "shinycannon-abort-"));
+      tmpDirs.push(tmpDir);
+
+      // Recording with a long sleep between events so abort fires mid-session
+      const recordingContent = [
+        "# version: 1",
+        `# target_url: ${mock.url}`,
+        "# target_type: R/Shiny",
+        JSON.stringify({ type: "REQ_HOME", begin: "2020-01-01T00:00:00.000Z", url: "/", status: 200 }),
+        JSON.stringify({ type: "WS_OPEN", begin: "2020-01-01T00:00:00.100Z", url: "sockjs/123/abc/websocket" }),
+        JSON.stringify({ type: "WS_RECV_INIT", begin: "2020-01-01T00:00:00.200Z", message: "o" }),
+        JSON.stringify({ type: "WS_SEND", begin: "2020-01-01T00:00:00.300Z", message: "test" }),
+        // 60s gap — abort will fire before this event
+        JSON.stringify({ type: "WS_CLOSE", begin: "2020-01-01T00:01:00.300Z" }),
+      ].join("\n");
+
+      const recordingPath = path.join(tmpDir, "recording.log");
+      fs.writeFileSync(recordingPath, recordingContent);
+      const outputDir = path.join(tmpDir, "output");
+      createOutputDir({ outputDir, overwrite: false, version: "test", recordingPath });
+
+      const recording = readRecordingFromString(recordingContent);
+      const stats = new Stats();
+      const logger = createLogger({ name: "test", consoleLevel: LogLevel.ERROR });
+
+      const abortController = new AbortController();
+      // Abort after 500ms — session will be mid-sleep
+      setTimeout(() => abortController.abort(), 500);
+
+      await runSession(
+        {
+          sessionId: 200,
+          workerId: 0,
+          iterationId: 0,
+          httpUrl: mock.url,
+          recording,
+          recordingPath,
+          headers: {},
+          creds: { user: null, pass: null, connectApiKey: null },
+          logger,
+          outputDir,
+          argsString: "test",
+          argsJson: "{}",
+          signal: abortController.signal,
+        },
+        stats,
+      );
+
+      const csvPath = path.join(outputDir, "sessions", "200_0_0.csv");
+      const lines = fs.readFileSync(csvPath, "utf-8").split("\n").filter((l) => l.length > 0);
+      const events = lines
+        .filter((l) => !l.startsWith("#") && !l.startsWith("session_id"))
+        .map((l) => l.split(",")[3]!)
+        .filter(Boolean);
+
+      expect(events).toContain("PLAYBACK_CANCEL");
+      expect(events).not.toContain("PLAYBACK_FAIL");
+      expect(stats.getCounts().failed).toBe(0);
+    } finally {
+      await mock.stop();
+    }
+  });
 });
